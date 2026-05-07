@@ -12,56 +12,64 @@ export async function GET(req: NextRequest) {
 
   const results: string[] = [];
 
-  // Seed permissions
-  const existingPerms = await getPermissions();
-  if (existingPerms.length === 0) {
-    await savePermissions(DEFAULT_PERMISSIONS);
-    results.push(`Created ${DEFAULT_PERMISSIONS.length} permissions`);
-  } else {
-    // Add any missing permissions
-    const existingKeys = new Set(existingPerms.map((p) => p.key));
-    const newPerms = DEFAULT_PERMISSIONS.filter((p) => !existingKeys.has(p.key));
-    if (newPerms.length > 0) {
-      await savePermissions([...existingPerms, ...newPerms]);
-      results.push(`Added ${newPerms.length} new permissions`);
+  try {
+    // Seed permissions
+    const existingPerms = await getPermissions();
+    if (existingPerms.length === 0) {
+      await savePermissions(DEFAULT_PERMISSIONS);
+      results.push(`Created ${DEFAULT_PERMISSIONS.length} permissions`);
     } else {
-      results.push("Permissions already up to date");
+      const existingKeys = new Set(existingPerms.map((p) => p.key));
+      const newPerms = DEFAULT_PERMISSIONS.filter((p) => !existingKeys.has(p.key));
+      if (newPerms.length > 0) {
+        await savePermissions([...existingPerms, ...newPerms]);
+        results.push(`Added ${newPerms.length} new permissions`);
+      } else {
+        results.push("Permissions already up to date");
+      }
     }
-  }
 
-  // Seed roles
-  const existingRoles = await getRoles();
-  if (existingRoles.length === 0) {
-    await saveRoles(DEFAULT_ROLES);
-    results.push(`Created ${DEFAULT_ROLES.length} roles`);
-  } else {
-    const existingIds = new Set(existingRoles.map((r) => r.id));
-    const newRoles = DEFAULT_ROLES.filter((r) => !existingIds.has(r.id));
-    if (newRoles.length > 0) {
-      await saveRoles([...existingRoles, ...newRoles]);
-      results.push(`Added ${newRoles.length} new roles`);
+    // Seed roles
+    const existingRoles = await getRoles();
+    if (existingRoles.length === 0) {
+      await saveRoles(DEFAULT_ROLES);
+      results.push(`Created ${DEFAULT_ROLES.length} roles`);
     } else {
-      results.push("Roles already up to date");
+      const existingIds = new Set(existingRoles.map((r) => r.id));
+      const newRoles = DEFAULT_ROLES.filter((r) => !existingIds.has(r.id));
+      if (newRoles.length > 0) {
+        await saveRoles([...existingRoles, ...newRoles]);
+        results.push(`Added ${newRoles.length} new roles`);
+      } else {
+        results.push("Roles already up to date");
+      }
     }
-  }
 
-  // Seed super admin
-  const users = await getUsers();
-  const hasSuperAdmin = users.some((u) => u.role === "super-admin");
-  if (!hasSuperAdmin) {
-    await createUser({
-      id: uuidv4(),
-      name: "Super",
-      surname: "Admin",
-      email: "admin@hvps.co.za",
-      password: "Admin@123",
-      role: "super-admin",
-      forcePasswordChange: true,
-    });
-    results.push("Created super admin (admin@hvps.co.za / Admin@123)");
-  } else {
-    results.push("Super admin already exists");
-  }
+    // Seed super admin
+    const users = await getUsers();
+    const hasSuperAdmin = users.some((u) => u.role === "super-admin");
+    if (!hasSuperAdmin) {
+      await createUser({
+        id: uuidv4(),
+        name: "Super",
+        surname: "Admin",
+        email: "admin@hvps.co.za",
+        password: "Admin@123",
+        role: "super-admin",
+        forcePasswordChange: true,
+      });
+      results.push("Created super admin (admin@hvps.co.za / Admin@123)");
+    } else {
+      results.push("Super admin already exists");
+    }
 
-  return NextResponse.json({ success: true, results });
+    return NextResponse.json({ success: true, results });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    return NextResponse.json(
+      { error: message, stack, envCheck: { hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN } },
+      { status: 500 }
+    );
+  }
 }
