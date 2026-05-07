@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import { getSession, clearSession } from "@/lib/useAuth";
 import { useState } from "react";
 
@@ -118,11 +119,16 @@ export default function Sidebar() {
       {/* Header */}
       <div className="p-4 border-b border-gray-700">
         <div className="flex items-center justify-between">
-          {!collapsed && (
-            <div>
-              <h1 className="text-lg font-bold text-primary">HVPS</h1>
-              <p className="text-xs text-gray-400">Compliance Portal</p>
+          {!collapsed ? (
+            <div className="flex items-center gap-3">
+              <Image src="/logo.png" alt="HVPS" width={36} height={43} />
+              <div>
+                <h1 className="text-lg font-bold text-primary">HVPS</h1>
+                <p className="text-xs text-gray-400">Compliance Portal</p>
+              </div>
             </div>
+          ) : (
+            <Image src="/logo.png" alt="HVPS" width={28} height={33} />
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}

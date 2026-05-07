@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const user = await getUserByEmail(email);
     if (!user) {
       return NextResponse.json(
-        { error: "Invalid email or password", debug: "user_not_found", emailUsed: email },
+        { error: "Invalid email or password" },
         { status: 401 }
       );
     }
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const valid = await verifyPassword(user, password);
     if (!valid) {
       return NextResponse.json(
-        { error: "Invalid email or password", debug: "password_mismatch", hasHash: !!user.password, hashStart: user.password?.substring(0, 7) },
+        { error: "Invalid email or password" },
         { status: 401 }
       );
     }
@@ -44,10 +44,9 @@ export async function POST(req: NextRequest) {
       session,
       forcePasswordChange: user.forcePasswordChange,
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+  } catch {
     return NextResponse.json(
-      { error: "Internal server error", debug: message },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

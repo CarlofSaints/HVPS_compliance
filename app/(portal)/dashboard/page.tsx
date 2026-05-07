@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/useAuth";
+import Image from "next/image";
 import DashboardCard from "@/components/DashboardCard";
 
 export default function DashboardPage() {
@@ -10,13 +11,16 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
         <h1 className="text-2xl font-bold text-dark">
           Welcome, {session?.name}
         </h1>
         <p className="text-gray-500 text-sm">
           Hurlyvale Primary School SGB Compliance Portal
         </p>
+        </div>
+        <Image src="/logo.png" alt="Hurlyvale Primary School" width={60} height={72} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
