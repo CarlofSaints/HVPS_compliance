@@ -8,9 +8,10 @@ function blobKey(path: string): string {
 
 export async function readJson<T>(blobPath: string, fallback: T): Promise<T> {
   try {
-    const result = await head(blobKey(blobPath));
-    if (result) {
-      const res = await fetch(result.downloadUrl);
+    const result = await list({ prefix: blobKey(blobPath), limit: 1 });
+    const blob = result.blobs.find((b) => b.pathname === blobKey(blobPath));
+    if (blob) {
+      const res = await fetch(blob.downloadUrl);
       if (res.ok) {
         return (await res.json()) as T;
       }
@@ -26,14 +27,16 @@ export async function writeJson<T>(blobPath: string, data: T): Promise<void> {
     access: "private",
     contentType: "application/json",
     addRandomSuffix: false,
+    allowOverwrite: true,
   });
 }
 
 export async function readFile(blobPath: string): Promise<Buffer | null> {
   try {
-    const result = await head(blobKey(blobPath));
-    if (result) {
-      const res = await fetch(result.downloadUrl);
+    const result = await list({ prefix: blobKey(blobPath), limit: 1 });
+    const blob = result.blobs.find((b) => b.pathname === blobKey(blobPath));
+    if (blob) {
+      const res = await fetch(blob.downloadUrl);
       if (res.ok) {
         const arrayBuffer = await res.arrayBuffer();
         return Buffer.from(arrayBuffer);
@@ -52,14 +55,16 @@ export async function writeFile(
   await put(blobKey(blobPath), Buffer.from(data), {
     access: "private",
     addRandomSuffix: false,
+    allowOverwrite: true,
   });
 }
 
 export async function deleteFile(blobPath: string): Promise<void> {
   try {
-    const result = await head(blobKey(blobPath));
-    if (result) {
-      await del(result.url);
+    const result = await list({ prefix: blobKey(blobPath), limit: 1 });
+    const blob = result.blobs.find((b) => b.pathname === blobKey(blobPath));
+    if (blob) {
+      await del(blob.url);
     }
   } catch {
     // ignore
