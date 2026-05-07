@@ -1,0 +1,335 @@
+"use client";
+
+import { useAuth, authFetch } from "@/lib/useAuth";
+import { useState, useEffect, useCallback } from "react";
+import Toast from "@/components/Toast";
+
+interface UserRecord {
+  id: string;
+  name: string;
+  surname: string;
+  email: string;
+  role: string;
+  forcePasswordChange: boolean;
+  createdAt: string;
+}
+
+interface RoleRecord {
+  id: string;
+  name: string;
+}
+
+export default function UsersPage() {
+  const { session, loading } = useAuth("manage_users");
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [roles, setRoles] = useState<RoleRecord[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editUser, setEditUser] = useState<UserRecord | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    surname: "",
+    email: "",
+    password: "",
+    role: "viewer",
+    forcePasswordChange: true,
+    sendEmail: false,
+  });
+  const [showPassword, setShowPassword] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    const [usersRes, rolesRes] = await Promise.all([
+      authFetch("/api/users"),
+      authFetch("/api/roles"),
+    ]);
+    if (usersRes.ok) setUsers(await usersRes.json());
+    if (rolesRes.ok) setRoles(await rolesRes.json());
+  }, []);
+
+  useEffect(() => {
+    if (session) fetchData();
+  }, [session, fetchData]);
+
+  const openCreate = () => {
+    setEditUser(null);
+    setForm({
+      name: "",
+      surname: "",
+      email: "",
+      password: "",
+      role: "viewer",
+      forcePasswordChange: true,
+      sendEmail: false,
+    });
+    setShowModal(true);
+  };
+
+  const openEdit = (user: UserRecord) => {
+    setEditUser(user);
+    setForm({
+      name: user.name,
+      surname: user.surname,
+      email: user.email,
+      password: "",
+      role: user.role,
+      forcePasswordChange: user.forcePasswordChange,
+      sendEmail: false,
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editUser) {
+      const updates: Record<string, unknown> = {
+        name: form.name,
+        surname: form.surname,
+        email: form.email,
+        role: form.role,
+        forcePasswordChange: form.forcePasswordChange,
+      };
+      if (form.password) updates.password = form.password;
+      const res = await authFetch(`/api/users/${editUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        setToast({ message: "User updated", type: "success" });
+        setShowModal(false);
+        fetchData();
+      } else {
+        const data = await res.json();
+        setToast({ message: data.error || "Failed", type: "error" });
+      }
+    } else {
+      if (!form.password) {
+        setToast({ message: "Password is required", type: "error" });
+        return;
+      }
+      const res = await authFetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        setToast({ message: "User created", type: "success" });
+        setShowModal(false);
+        fetchData();
+      } else {
+        const data = await res.json();
+        setToast({ message: data.error || "Failed", type: "error" });
+      }
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this user?")) return;
+    const res = await authFetch(`/api/users/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setToast({ message: "User deleted", type: "success" });
+      fetchData();
+    }
+  };
+
+  if (loading) return <div className="p-6">Loading...</div>;
+
+  return (
+    <div>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-dark">Users</h1>
+          <p className="text-gray-500 text-sm">Manage user accounts</p>
+        </div>
+        <button
+          onClick={openCreate}
+          className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          + Add User
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th className="text-left px-6 py-3 font-medium text-gray-500">Name</th>
+              <th className="text-left px-6 py-3 font-medium text-gray-500">Email</th>
+              <th className="text-left px-6 py-3 font-medium text-gray-500">Role</th>
+              <th className="text-left px-6 py-3 font-medium text-gray-500">Status</th>
+              <th className="text-right px-6 py-3 font-medium text-gray-500">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => {
+              const roleName = roles.find((r) => r.id === user.role)?.name || user.role;
+              return (
+                <tr key={user.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">
+                        {user.name[0]}{user.surname[0]}
+                      </div>
+                      <span className="font-medium">{user.name} {user.surname}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-gray-600">{user.email}</td>
+                  <td className="px-6 py-4">
+                    <span className="bg-primary/10 text-primary-dark px-2 py-1 rounded text-xs font-medium">
+                      {roleName}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {user.forcePasswordChange ? (
+                      <span className="text-risk-medium text-xs">Pending PW Change</span>
+                    ) : (
+                      <span className="text-emerald-600 text-xs">Active</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => openEdit(user)}
+                      className="text-primary hover:text-primary-dark mr-3 text-xs font-medium"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(user.id)}
+                      className="text-risk-high hover:text-red-700 text-xs font-medium"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                  No users yet. Click &quot;+ Add User&quot; to create one.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-lg font-semibold">{editUser ? "Edit User" : "Create User"}</h2>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Surname</label>
+                  <input
+                    type="text"
+                    value={form.surname}
+                    onChange={(e) => setForm({ ...form, surname: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password {editUser && "(leave blank to keep current)"}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    required={!editUser}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                >
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.forcePasswordChange}
+                    onChange={(e) => setForm({ ...form, forcePasswordChange: e.target.checked })}
+                    className="accent-primary"
+                  />
+                  Force password change on login
+                </label>
+              </div>
+              {!editUser && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.sendEmail}
+                    onChange={(e) => setForm({ ...form, sendEmail: e.target.checked })}
+                    className="accent-primary"
+                  />
+                  Send welcome email with credentials
+                </label>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-primary hover:bg-primary-dark text-white py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  {editUser ? "Save Changes" : "Create User"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

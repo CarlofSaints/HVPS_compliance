@@ -1,0 +1,56 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requirePermission } from "@/lib/rolesData";
+import { getPersonById, updatePerson, deletePerson } from "@/lib/peopleData";
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await requirePermission(req, "manage_people");
+  if (session instanceof NextResponse) return session;
+
+  const { id } = await params;
+  const person = await getPersonById(id);
+  if (!person) {
+    return NextResponse.json({ error: "Person not found" }, { status: 404 });
+  }
+  return NextResponse.json(person);
+}
+
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await requirePermission(req, "manage_people");
+  if (session instanceof NextResponse) return session;
+
+  const { id } = await params;
+  try {
+    const body = await req.json();
+    const updated = await updatePerson(id, body);
+    if (!updated) {
+      return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    }
+    return NextResponse.json(updated);
+  } catch {
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await requirePermission(req, "manage_people");
+  if (session instanceof NextResponse) return session;
+
+  const { id } = await params;
+  const deleted = await deletePerson(id);
+  if (!deleted) {
+    return NextResponse.json({ error: "Person not found" }, { status: 404 });
+  }
+  return NextResponse.json({ success: true });
+}
