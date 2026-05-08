@@ -15,16 +15,17 @@ interface ComplianceResult {
   sources?: { title: string; url: string }[];
 }
 
-// Truncate text to stay within reasonable token limits
-// ~4 chars per token, aim for ~50k tokens max per guideline
-const MAX_CHARS_PER_GUIDELINE = 200000;
-const MAX_CHARS_POLICY = 200000;
+// Conservative limits to stay within Vercel memory and Claude context
+// ~4 chars per token — keep total under ~60k tokens input
+const MAX_CHARS_PER_GUIDELINE = 40000; // ~10k tokens each
+const MAX_CHARS_POLICY = 80000; // ~20k tokens
+const MAX_GUIDELINE_FILE_SIZE = 2 * 1024 * 1024; // Skip files > 2MB (too large to parse in serverless)
 
 function truncateText(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   return (
     text.slice(0, maxChars) +
-    "\n\n[... Document truncated due to length. Key sections above should cover primary compliance areas.]"
+    "\n\n[... Document truncated. Use web search to look up the full text of this legislation online.]"
   );
 }
 
@@ -40,11 +41,20 @@ export async function runComplianceCheck(
 
   const client = new Anthropic({ apiKey });
 
-  // Load all guideline texts
+  // Load guideline texts (skip files that are too large to parse in serverless)
   const guidelines = await getGuidelines();
   const guidelineTexts: string[] = [];
+  const skippedGuidelines: string[] = [];
 
   for (const g of guidelines) {
+    if (g.size > MAX_GUIDELINE_FILE_SIZE) {
+      skippedGuidelines.push(`${g.name} (${g.source})`);
+      guidelineTexts.push(
+        `--- Guideline: ${g.name} (Source: ${g.source}) ---\n[Document too large to include inline. Search online for the full text of this legislation.]\n`
+      );
+      continue;
+    }
+
     const fileBuffer = await downloadGuidelineFile(g.id, g.ext);
     if (fileBuffer) {
       try {
@@ -54,7 +64,7 @@ export async function runComplianceCheck(
         );
       } catch {
         guidelineTexts.push(
-          `--- Guideline: ${g.name} (Source: ${g.source}) ---\n[Could not extract text]\n`
+          `--- Guideline: ${g.name} (Source: ${g.source}) ---\n[Could not extract text. Search online for this legislation.]\n`
         );
       }
     }
@@ -63,6 +73,11 @@ export async function runComplianceCheck(
   const guidelineSection =
     guidelineTexts.length > 0
       ? `\n\nREFERENCE GUIDELINES:\n${guidelineTexts.join("\n")}`
+      : "";
+
+  const searchNote =
+    skippedGuidelines.length > 0
+      ? `\nNOTE: The following guideline documents were too large to include in full. You MUST use web search to look up their current provisions: ${skippedGuidelines.join(", ")}.`
       : "";
 
   const typeLabel = mode === "policy" ? "school policy" : "school document";
@@ -75,7 +90,7 @@ IMPORTANT: Use the web search tool to look up the latest versions of relevant So
 - SASA (South African Schools Act) current provisions
 - GDE (Gauteng Department of Education) latest circulars and guidelines
 - DoE (Department of Basic Education) current regulations
-Search for any specific regulations mentioned in or relevant to this document.
+Search for any specific regulations mentioned in or relevant to this document.${searchNote}
 
 DOCUMENT NAME: ${policyName}
 
@@ -83,7 +98,7 @@ DOCUMENT TEXT:
 ${truncatedPolicy}
 ${guidelineSection}
 
-After researching the latest regulations online and reviewing the uploaded guidelines above, analyze this ${typeLabel} and return a JSON object with this exact structure:
+After researching the latest regulations online and reviewing any uploaded guidelines above, analyze this ${typeLabel} and return a JSON object with this exact structure:
 {
   "score": <number 0-100 representing overall compliance score>,
   "summary": "<overall assessment in 2-3 sentences>",
@@ -128,7 +143,6 @@ Be thorough but fair. A score of 100 means fully compliant. Identify specific se
             citation.url &&
             citation.title
           ) {
-            // Avoid duplicate sources
             if (!sources.some((s) => s.url === citation.url)) {
               sources.push({ title: citation.title, url: citation.url });
             }
