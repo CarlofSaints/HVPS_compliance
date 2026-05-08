@@ -88,6 +88,29 @@ export async function sendPasswordResetEmail(
   return sendEmail(to, "Password Reset - HVPS Portal", emailShell("Password Reset", body));
 }
 
+export async function sendApplicantConfirmationEmail(
+  to: string,
+  applicantName: string,
+  submitterName: string,
+  projectName: string,
+  quoteCount: number,
+  approverNames: string[]
+): Promise<boolean> {
+  const approverList = approverNames.join(", ");
+  const body = `
+    <p style="color:#333;">Dear ${applicantName},</p>
+    <p style="color:#333;">${submitterName} has submitted an application for school funds spend for: <strong>"${projectName}"</strong></p>
+    <p style="color:#333;">${quoteCount} quote${quoteCount !== 1 ? "s were" : " was"} submitted — see copies attached.</p>
+    <p style="color:#333;">A copy of this application has been sent to: ${approverList}.</p>
+    <a href="${SITE_URL}/spend" style="display:inline-block;background:#00BCD4;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:12px;">View Application</a>
+  `;
+  return sendEmail(
+    to,
+    `Spend Application Submitted: ${projectName}`,
+    emailShell("Application Submitted", body)
+  );
+}
+
 async function sendEmail(
   to: string,
   subject: string,

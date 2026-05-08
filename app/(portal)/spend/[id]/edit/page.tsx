@@ -2,7 +2,7 @@
 
 import { useAuth, authFetch } from "@/lib/useAuth";
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Toast from "@/components/Toast";
 
 interface SpendSettings {
@@ -10,8 +10,35 @@ interface SpendSettings {
   supplierConnections: string[];
 }
 
+interface QuoteDetail {
+  supplierName: string;
+  supplierWebsite?: string;
+  supplierEmail: string;
+  supplierPhone?: string;
+  priceExclVat?: number;
+}
+
+interface SpendData {
+  id: string;
+  projectName: string;
+  description: string;
+  estimatedAmount: number;
+  supplierConnection: string;
+  budgeted: boolean;
+  sourceOfFunds: string;
+  status: string;
+  submittedBy: string;
+  quoteDetails: QuoteDetail[];
+  quotes: string[];
+  applicantName?: string;
+  applicantSurname?: string;
+  applicantEmail?: string;
+  submittedOnBehalf?: boolean;
+}
+
 interface QuoteEntry {
   file: File | null;
+  existingPath?: string;
   supplierName: string;
   supplierWebsite: string;
   supplierEmail: string;
@@ -19,62 +46,88 @@ interface QuoteEntry {
   priceExclVat: string;
 }
 
-const emptyQuote = (): QuoteEntry => ({
-  file: null,
-  supplierName: "",
-  supplierWebsite: "",
-  supplierEmail: "",
-  supplierPhone: "",
-  priceExclVat: "",
-});
-
-export default function NewSpendPage() {
+export default function EditSpendPage() {
   const { session, loading } = useAuth("submit_spend");
+  const params = useParams();
   const router = useRouter();
+  const spendId = params.id as string;
+
+  const [data, setData] = useState<SpendData | null>(null);
   const [projectName, setProjectName] = useState("");
   const [description, setDescription] = useState("");
   const [estimatedAmount, setEstimatedAmount] = useState("");
   const [supplierConnection, setSupplierConnection] = useState("None");
   const [budgeted, setBudgeted] = useState(false);
   const [sourceOfFunds, setSourceOfFunds] = useState("Fundraising");
-  const [quotes, setQuotes] = useState<QuoteEntry[]>([
-    emptyQuote(),
-    emptyQuote(),
-    emptyQuote(),
-    emptyQuote(),
-  ]);
+  const [quotes, setQuotes] = useState<QuoteEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState<{
-    message: string;
-    type: "success" | "error";
-  } | null>(null);
 
-  // On-behalf-of state
   const [onBehalf, setOnBehalf] = useState(false);
   const [applicantName, setApplicantName] = useState("");
   const [applicantSurname, setApplicantSurname] = useState("");
   const [applicantEmail, setApplicantEmail] = useState("");
 
-  // Dynamic settings
   const [settings, setSettings] = useState<SpendSettings | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
 
-  const fetchSettings = useCallback(async () => {
-    const res = await authFetch("/api/settings/spend");
-    if (res.ok) {
-      const data = await res.json();
-      setSettings(data);
-      if (data.sourcesOfFunds.length > 0) {
-        setSourceOfFunds(data.sourcesOfFunds[0]);
+  const fetchData = useCallback(async () => {
+    const [spendRes, settingsRes] = await Promise.all([
+      authFetch(`/api/spend/${spendId}`),
+      authFetch("/api/settings/spend"),
+    ]);
+
+    if (spendRes.ok) {
+      const spend: SpendData = await spendRes.json();
+      setData(spend);
+      setProjectName(spend.projectName);
+      setDescription(spend.description);
+      setEstimatedAmount(spend.estimatedAmount.toString());
+      setSupplierConnection(spend.supplierConnection);
+      setBudgeted(spend.budgeted);
+      setSourceOfFunds(spend.sourceOfFunds);
+      setOnBehalf(spend.submittedOnBehalf || false);
+      setApplicantName(spend.applicantName || "");
+      setApplicantSurname(spend.applicantSurname || "");
+      setApplicantEmail(spend.applicantEmail || "");
+
+      // Pre-populate quotes
+      const quoteEntries: QuoteEntry[] = [];
+      for (let i = 0; i < 4; i++) {
+        const detail = spend.quoteDetails[i];
+        const path = spend.quotes[i];
+        if (detail) {
+          quoteEntries.push({
+            file: null,
+            existingPath: path,
+            supplierName: detail.supplierName || "",
+            supplierWebsite: detail.supplierWebsite || "",
+            supplierEmail: detail.supplierEmail || "",
+            supplierPhone: detail.supplierPhone || "",
+            priceExclVat: detail.priceExclVat?.toString() || "",
+          });
+        } else {
+          quoteEntries.push({
+            file: null,
+            supplierName: "",
+            supplierWebsite: "",
+            supplierEmail: "",
+            supplierPhone: "",
+            priceExclVat: "",
+          });
+        }
       }
-      if (data.supplierConnections.length > 0) {
-        setSupplierConnection(data.supplierConnections[0]);
-      }
+      setQuotes(quoteEntries);
     }
-  }, []);
+
+    if (settingsRes.ok) setSettings(await settingsRes.json());
+  }, [spendId]);
 
   useEffect(() => {
-    if (session) fetchSettings();
-  }, [session, fetchSettings]);
+    if (session) fetchData();
+  }, [session, fetchData]);
 
   const sourcesOfFunds = settings?.sourcesOfFunds || [
     "Fundraising",
@@ -86,11 +139,6 @@ export default function NewSpendPage() {
     "None",
     "Parent",
     "SGB Member",
-    "Friend of Parent",
-    "Teacher",
-    "Relative of Teacher",
-    "Relative of Parent",
-    "Relative of SGB Member",
   ];
 
   const updateQuote = (index: number, updates: Partial<QuoteEntry>) => {
@@ -110,9 +158,8 @@ export default function NewSpendPage() {
     formData.append("supplierConnection", supplierConnection);
     formData.append("budgeted", budgeted ? "yes" : "no");
     formData.append("sourceOfFunds", sourceOfFunds);
-
-    // On-behalf-of fields
     formData.append("onBehalf", onBehalf ? "yes" : "no");
+
     if (onBehalf) {
       formData.append("applicantName", applicantName);
       formData.append("applicantSurname", applicantSurname);
@@ -122,30 +169,52 @@ export default function NewSpendPage() {
     quotes.forEach((quote, i) => {
       if (quote.file) {
         formData.append(`quote${i + 1}`, quote.file);
-        formData.append(`quote${i + 1}_supplierName`, quote.supplierName);
-        formData.append(`quote${i + 1}_supplierWebsite`, quote.supplierWebsite);
-        formData.append(`quote${i + 1}_supplierEmail`, quote.supplierEmail);
-        formData.append(`quote${i + 1}_supplierPhone`, quote.supplierPhone);
-        formData.append(`quote${i + 1}_priceExclVat`, quote.priceExclVat);
       }
+      formData.append(`quote${i + 1}_supplierName`, quote.supplierName);
+      formData.append(`quote${i + 1}_supplierWebsite`, quote.supplierWebsite);
+      formData.append(`quote${i + 1}_supplierEmail`, quote.supplierEmail);
+      formData.append(`quote${i + 1}_supplierPhone`, quote.supplierPhone);
+      formData.append(`quote${i + 1}_priceExclVat`, quote.priceExclVat);
     });
 
-    const res = await authFetch("/api/spend", {
-      method: "POST",
+    const res = await authFetch(`/api/spend/${spendId}`, {
+      method: "PUT",
       body: formData,
     });
 
     if (res.ok) {
-      const data = await res.json();
-      router.push(`/spend/${data.id}`);
+      router.push(`/spend/${spendId}`);
     } else {
-      const data = await res.json();
-      setToast({ message: data.error || "Submission failed", type: "error" });
+      const err = await res.json();
+      setToast({ message: err.error || "Failed to save", type: "error" });
     }
     setSubmitting(false);
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (loading || !data)
+    return <div className="p-6">Loading...</div>;
+
+  // Access check
+  const isSubmitter = data.submittedBy === session?.id;
+  const isAdmin =
+    session?.permissions.includes("manage_spend_settings") ||
+    session?.permissions.includes("manage_users");
+
+  if (!isSubmitter && !isAdmin) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        You do not have permission to edit this application.
+      </div>
+    );
+  }
+
+  if (data.status === "approved" || data.status === "completed") {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        This application cannot be edited in its current status.
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -158,11 +227,9 @@ export default function NewSpendPage() {
       )}
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-dark">
-          New Spend Application
-        </h1>
+        <h1 className="text-2xl font-bold text-dark">Edit Application</h1>
         <p className="text-gray-500 text-sm">
-          Submit a spend request for SGB approval
+          Editing: {data.projectName}
         </p>
       </div>
 
@@ -181,7 +248,6 @@ export default function NewSpendPage() {
                 Filling in this form for someone else?
               </span>
             </label>
-
             {onBehalf && (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
@@ -193,7 +259,6 @@ export default function NewSpendPage() {
                     value={applicantName}
                     onChange={(e) => setApplicantName(e.target.value)}
                     required={onBehalf}
-                    placeholder="First name"
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                   />
                 </div>
@@ -206,7 +271,6 @@ export default function NewSpendPage() {
                     value={applicantSurname}
                     onChange={(e) => setApplicantSurname(e.target.value)}
                     required={onBehalf}
-                    placeholder="Surname"
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                   />
                 </div>
@@ -219,7 +283,6 @@ export default function NewSpendPage() {
                     value={applicantEmail}
                     onChange={(e) => setApplicantEmail(e.target.value)}
                     required={onBehalf}
-                    placeholder="email@example.com"
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                   />
                 </div>
@@ -237,7 +300,6 @@ export default function NewSpendPage() {
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
               required
-              placeholder="e.g. Classroom Painting"
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
             />
           </div>
@@ -252,7 +314,6 @@ export default function NewSpendPage() {
               onChange={(e) => setDescription(e.target.value)}
               required
               rows={4}
-              placeholder="Describe the project, justification, and expected outcomes..."
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
             />
           </div>
@@ -281,7 +342,7 @@ export default function NewSpendPage() {
           {/* Supplier Connection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Are any of the suppliers connected to the school in some way?
+              Supplier Connection
             </label>
             <select
               value={supplierConnection}
@@ -306,21 +367,21 @@ export default function NewSpendPage() {
                 <input
                   type="radio"
                   name="budgeted"
-                  checked={budgeted === true}
+                  checked={budgeted}
                   onChange={() => setBudgeted(true)}
                   className="w-4 h-4 text-primary focus:ring-primary"
                 />
-                <span className="text-sm text-gray-700">Yes</span>
+                <span className="text-sm">Yes</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="radio"
                   name="budgeted"
-                  checked={budgeted === false}
+                  checked={!budgeted}
                   onChange={() => setBudgeted(false)}
                   className="w-4 h-4 text-primary focus:ring-primary"
                 />
-                <span className="text-sm text-gray-700">No</span>
+                <span className="text-sm">No</span>
               </label>
             </div>
           </div>
@@ -356,6 +417,11 @@ export default function NewSpendPage() {
                 >
                   <p className="text-sm font-medium text-gray-600 mb-3">
                     Quote {i + 1}
+                    {quotes[i]?.existingPath && !quotes[i]?.file && (
+                      <span className="text-xs text-primary ml-2">
+                        (existing file uploaded)
+                      </span>
+                    )}
                   </p>
                   <div className="space-y-3">
                     <input
@@ -368,11 +434,6 @@ export default function NewSpendPage() {
                       }
                       className="w-full text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                     />
-                    {quotes[i].file && (
-                      <p className="text-xs text-primary truncate">
-                        {quotes[i].file!.name}
-                      </p>
-                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">
@@ -380,70 +441,64 @@ export default function NewSpendPage() {
                         </label>
                         <input
                           type="text"
-                          value={quotes[i].supplierName}
+                          value={quotes[i]?.supplierName || ""}
                           onChange={(e) =>
                             updateQuote(i, {
                               supplierName: e.target.value,
                             })
                           }
-                          placeholder="Company name"
                           className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                         />
                       </div>
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">
-                          Supplier Website{" "}
-                          <span className="text-gray-400">(optional)</span>
+                          Supplier Website
                         </label>
                         <input
                           type="url"
-                          value={quotes[i].supplierWebsite}
+                          value={quotes[i]?.supplierWebsite || ""}
                           onChange={(e) =>
                             updateQuote(i, {
                               supplierWebsite: e.target.value,
                             })
                           }
-                          placeholder="https://..."
                           className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                         />
                       </div>
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">
-                          Supplier Contact Email
+                          Supplier Email
                         </label>
                         <input
                           type="email"
-                          value={quotes[i].supplierEmail}
+                          value={quotes[i]?.supplierEmail || ""}
                           onChange={(e) =>
                             updateQuote(i, {
                               supplierEmail: e.target.value,
                             })
                           }
-                          placeholder="supplier@example.com"
                           className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                         />
                       </div>
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">
-                          Supplier Contact Number{" "}
-                          <span className="text-gray-400">(optional)</span>
+                          Supplier Phone
                         </label>
                         <input
                           type="tel"
-                          value={quotes[i].supplierPhone}
+                          value={quotes[i]?.supplierPhone || ""}
                           onChange={(e) =>
                             updateQuote(i, {
                               supplierPhone: e.target.value,
                             })
                           }
-                          placeholder="012 345 6789"
                           className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                         />
                       </div>
                     </div>
                     <div className="mt-3">
                       <label className="block text-xs text-gray-500 mb-1">
-                        Total Price Excluding VAT (ZAR)
+                        Price Excl. VAT (ZAR)
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
@@ -451,7 +506,7 @@ export default function NewSpendPage() {
                         </span>
                         <input
                           type="number"
-                          value={quotes[i].priceExclVat}
+                          value={quotes[i]?.priceExclVat || ""}
                           onChange={(e) =>
                             updateQuote(i, {
                               priceExclVat: e.target.value,
@@ -459,7 +514,6 @@ export default function NewSpendPage() {
                           }
                           min="0"
                           step="0.01"
-                          placeholder="0.00"
                           className="w-full pl-7 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                         />
                       </div>
@@ -476,11 +530,11 @@ export default function NewSpendPage() {
               disabled={submitting}
               className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
             >
-              {submitting ? "Submitting..." : "Submit Application"}
+              {submitting ? "Saving..." : "Save Changes"}
             </button>
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => router.push(`/spend/${spendId}`)}
               className="px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
             >
               Cancel

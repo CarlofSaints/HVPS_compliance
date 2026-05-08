@@ -35,6 +35,7 @@ export const DEFAULT_PERMISSIONS: Permission[] = [
   { key: "manage_users", name: "Manage Users", category: "Admin" },
   { key: "manage_roles", name: "Manage Roles & Permissions", category: "Admin" },
   { key: "manage_people", name: "Manage People", category: "Admin" },
+  { key: "manage_spend_settings", name: "Manage Spend Settings", category: "Admin" },
 ];
 
 export const ALL_PERMISSION_KEYS = DEFAULT_PERMISSIONS.map((p) => p.key);

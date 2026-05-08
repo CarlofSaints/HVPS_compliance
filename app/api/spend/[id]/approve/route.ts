@@ -21,11 +21,19 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const { decision, comments } = body;
+    const { decision, comments, preferredQuoteIndex } = body;
 
     if (!["approved", "rejected", "requires_changes"].includes(decision)) {
       return NextResponse.json(
         { error: "Invalid decision" },
+        { status: 400 }
+      );
+    }
+
+    // Check if user already submitted a decision
+    if (app.approvals.some((a) => a.userId === session.id)) {
+      return NextResponse.json(
+        { error: "You have already submitted your decision" },
         { status: 400 }
       );
     }
@@ -42,9 +50,20 @@ export async function POST(
       decision: decision as "approved" | "rejected" | "requires_changes",
       comments: comments || "",
       decidedAt: new Date().toISOString(),
+      preferredQuoteIndex:
+        preferredQuoteIndex !== undefined ? preferredQuoteIndex : undefined,
     };
 
     const updatedApprovals = [...app.approvals, approval];
+
+    // Update preferred quotes
+    const updatedPreferredQuotes = [...(app.preferredQuotes || [])];
+    if (preferredQuoteIndex !== undefined) {
+      updatedPreferredQuotes.push({
+        userId: session.id,
+        quoteIndex: preferredQuoteIndex,
+      });
+    }
 
     // Determine overall status
     let newStatus = app.status;
@@ -70,11 +89,15 @@ export async function POST(
       );
       if (allApproved) {
         newStatus = "approved";
+      } else {
+        // At least one approval in but not all — pending_decision
+        newStatus = "pending_decision";
       }
     }
 
     await updateSpendApplication(id, {
       approvals: updatedApprovals,
+      preferredQuotes: updatedPreferredQuotes,
       status: newStatus,
     });
 

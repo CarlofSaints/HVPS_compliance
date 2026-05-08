@@ -18,11 +18,33 @@ export interface SpendApplication {
   sourceOfFunds: string;
   quotes: string[]; // file paths
   quoteDetails: QuoteDetail[];
-  status: "pending" | "approved" | "rejected" | "requires_changes";
+  status:
+    | "pending"
+    | "pending_decision"
+    | "approved"
+    | "rejected"
+    | "requires_changes"
+    | "completed";
   submittedBy: string;
   submittedByName: string;
   submittedAt: string;
   approvals: SpendApproval[];
+  // Applicant (on-behalf-of) fields
+  applicantName: string;
+  applicantSurname: string;
+  applicantEmail: string;
+  submittedOnBehalf: boolean;
+  // Quote selection
+  preferredQuotes: { userId: string; quoteIndex: number }[];
+  selectedQuoteIndex?: number;
+  approvedAmount?: number;
+  // Completion fields
+  completedAt?: string;
+  completedBy?: string;
+  finishedOnTime?: boolean;
+  finishedWithinBudget?: boolean;
+  budgetOverrunAmount?: number;
+  budgetOverrunExplanation?: string;
 }
 
 export interface SpendApproval {
@@ -32,7 +54,17 @@ export interface SpendApproval {
   decision: "approved" | "rejected" | "requires_changes";
   comments: string;
   decidedAt: string;
+  preferredQuoteIndex?: number;
 }
+
+export const STATUS_DISPLAY: Record<string, string> = {
+  pending: "APPLIED",
+  pending_decision: "PENDING DECISION",
+  approved: "APPROVED",
+  rejected: "DECLINED",
+  requires_changes: "NEEDS MORE WORK",
+  completed: "COMPLETED",
+};
 
 const SPEND_INDEX = "spend/index.json";
 

@@ -82,6 +82,7 @@ const navItems: NavItem[] = [
       { label: "Users", href: "/admin/users", permission: "manage_users" },
       { label: "Roles", href: "/admin/roles", permission: "manage_roles" },
       { label: "People", href: "/admin/people", permission: "manage_people" },
+      { label: "Spend Settings", href: "/admin/spend-settings", permission: "manage_spend_settings" },
     ],
   },
 ];

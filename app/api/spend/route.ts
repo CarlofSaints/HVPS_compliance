@@ -7,7 +7,10 @@ import {
 } from "@/lib/spendData";
 import type { QuoteDetail } from "@/lib/spendData";
 import { getPeopleByPositions } from "@/lib/peopleData";
-import { sendSpendNotificationEmail } from "@/lib/email";
+import {
+  sendSpendNotificationEmail,
+  sendApplicantConfirmationEmail,
+} from "@/lib/email";
 import { v4 as uuidv4 } from "uuid";
 
 export async function GET(req: NextRequest) {
@@ -41,6 +44,18 @@ export async function POST(req: NextRequest) {
     const sourceOfFunds =
       (formData.get("sourceOfFunds") as string) || "Fundraising";
 
+    // On-behalf-of fields
+    const isOnBehalf = (formData.get("onBehalf") as string) === "yes";
+    const applicantName = isOnBehalf
+      ? (formData.get("applicantName") as string) || ""
+      : session.name;
+    const applicantSurname = isOnBehalf
+      ? (formData.get("applicantSurname") as string) || ""
+      : session.surname;
+    const applicantEmail = isOnBehalf
+      ? (formData.get("applicantEmail") as string) || ""
+      : session.email;
+
     if (!projectName || !description || isNaN(estimatedAmount)) {
       return NextResponse.json(
         { error: "Project name, description, and amount are required" },
@@ -60,7 +75,8 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(await quoteFile.arrayBuffer());
         const path = await uploadQuoteFile(spendId, i, ext, buffer);
         quotePaths.push(path);
-        const priceStr = (formData.get(`quote${i}_priceExclVat`) as string) || "0";
+        const priceStr =
+          (formData.get(`quote${i}_priceExclVat`) as string) || "0";
         quoteDetails.push({
           supplierName:
             (formData.get(`quote${i}_supplierName`) as string) || "",
@@ -90,6 +106,11 @@ export async function POST(req: NextRequest) {
       submittedByName: `${session.name} ${session.surname}`,
       submittedAt: new Date().toISOString(),
       approvals: [],
+      applicantName,
+      applicantSurname,
+      applicantEmail,
+      submittedOnBehalf: isOnBehalf,
+      preferredQuotes: [],
     };
 
     await createSpendApplication(app);
@@ -112,6 +133,19 @@ export async function POST(req: NextRequest) {
           `${session.name} ${session.surname}`
         );
       }
+    }
+
+    // Send confirmation email to applicant (if on behalf of someone)
+    if (isOnBehalf && applicantEmail) {
+      const approverNames = approvers.map((p) => `${p.name} (${p.position})`);
+      await sendApplicantConfirmationEmail(
+        applicantEmail,
+        `${applicantName} ${applicantSurname}`,
+        `${session.name} ${session.surname}`,
+        projectName,
+        quotePaths.length,
+        approverNames
+      );
     }
 
     return NextResponse.json({ id: spendId }, { status: 201 });
