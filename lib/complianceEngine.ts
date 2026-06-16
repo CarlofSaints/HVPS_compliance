@@ -70,13 +70,31 @@ async function analyze(
     throw new Error("ANTHROPIC_API_KEY not configured");
   }
 
-  const client = new Anthropic({ apiKey });
+  // maxRetries covers transient Anthropic 5xx/overloaded errors with backoff.
+  const client = new Anthropic({ apiKey, maxRetries: 4 });
 
-  const message = await client.messages.create({
-    model: "claude-opus-4-8",
-    max_tokens: 4096,
-    messages: [{ role: "user", content }],
-  });
+  let message;
+  try {
+    message = await client.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 4096,
+      messages: [{ role: "user", content }],
+    });
+  } catch (err) {
+    if (
+      err instanceof Anthropic.APIError &&
+      typeof err.status === "number" &&
+      err.status >= 500
+    ) {
+      // Anthropic-side error (e.g. api_error / overloaded). Already retried.
+      const reqId = (err as { request_id?: string }).request_id;
+      console.error("Anthropic API error during compliance check:", err.status, reqId, err.message);
+      throw new Error(
+        "The AI service is temporarily unavailable. Please try again in a moment."
+      );
+    }
+    throw err;
+  }
 
   const responseText =
     message.content[0].type === "text" ? message.content[0].text : "";

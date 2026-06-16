@@ -113,8 +113,18 @@ export default function CompliancePage() {
         if (res.ok && contentType.includes("application/json")) {
           const data = await res.json();
           setResult(data);
-          if (data.id && file) {
-            setLoadedCheck({ id: data.id, name: name || file.name, filename: file.name });
+          if (data.id) {
+            setLoadedCheck({
+              id: data.id,
+              name: data.name || name || (file ? file.name : ""),
+              filename: data.filename || (file ? file.name : ""),
+            });
+          }
+          if (data.duplicate) {
+            setToast({
+              message: "This document was already checked — showing the saved result.",
+              type: "success",
+            });
           }
         } else if (contentType.includes("application/json")) {
           const err = await res.json();

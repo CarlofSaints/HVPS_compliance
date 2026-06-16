@@ -3,6 +3,15 @@
 ## Project Location
 `C:\Users\CarlDosSantos-(OUTER\Projects\hvps-compliance`
 
+## Feature 2026-06-16: Persisted compliance checks + dashboard grid
+Upload-based checks (`/api/compliance/check`) were stateless — nothing saved, dashboard cards hardcoded to `0`, results vanished on navigation. Now:
+- `lib/complianceCheckData.ts` — Blob-backed store (`compliance/checks.json` index + `compliance/<id>/<filename>` for the original file).
+- POST `/api/compliance/check` persists each check + file (save is **non-fatal** — wrapped in its own try/catch so a Blob failure never loses the analysis result; returns `{...result, id}`).
+- GET `/api/compliance/checks` (lean list, `view_dashboard`), `/checks/[id]` (full result, `check_compliance`), `/checks/[id]/file` (download original, `check_compliance`).
+- Dashboard (`app/(portal)/dashboard/page.tsx`): "Compliance Checks" + "Non-Compliant" cards now fetch real counts; new grid (Document→link `/compliance?check=<id>`, Score, Issues, Checked by, Date). Other two cards (Total Policies, Spend Pending) still hardcoded `0` — not yet wired.
+- Compliance page re-loads a saved check from `?check=<id>` (reads `window.location.search`, no `useSearchParams` → avoids Suspense build req) and shows a **Download** button. Download uses `authFetch`→blob (header auth `x-user-id` means a bare `<a download>` would 401 — known project gotcha).
+- **Caveat:** only checks run AFTER this deploy are saved; pre-existing runs won't appear.
+
 ## RESOLVED 2026-06-16: Compliance Check failures (TWO root causes, both fixed)
 
 **Bug 1 — "fast timeout" / instant 404 (retired model).** `lib/complianceEngine.ts` pinned model `claude-sonnet-4-20250514`, which **retired June 15, 2026**. From June 16 on, the Anthropic API returns an immediate 404 `not_found_error` — surfaces in the UI as a fast failure / "timed out very quickly". Fixed by switching to `claude-opus-4-8`. (The old fallback note suggesting `claude-3-5-sonnet-20241022` is even more retired — Oct 2025 — do NOT use it. Current valid IDs: `claude-opus-4-8`, `claude-sonnet-4-6`, `claude-haiku-4-5`. Verify IDs against the live catalog; never pin dated snapshots.)

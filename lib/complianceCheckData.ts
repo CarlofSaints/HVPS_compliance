@@ -13,6 +13,7 @@ export interface ComplianceCheckRecord {
   name: string; // document name given by the user
   filename: string; // original uploaded filename (for download)
   ext: string;
+  hash?: string; // sha256 of the uploaded file bytes (for duplicate detection)
   score: number;
   summary: string;
   risks: ComplianceCheckRisk[];
@@ -37,6 +38,16 @@ export async function getComplianceCheckById(
 ): Promise<ComplianceCheckRecord | undefined> {
   const checks = await readJson<ComplianceCheckRecord[]>(CHECKS_INDEX, []);
   return checks.find((c) => c.id === id);
+}
+
+// Duplicate detection by file content (sha256). Same bytes = duplicate, even
+// if the document was renamed; an edited file produces a different hash and is
+// treated as a new check.
+export async function findComplianceCheckByHash(
+  hash: string
+): Promise<ComplianceCheckRecord | undefined> {
+  const checks = await readJson<ComplianceCheckRecord[]>(CHECKS_INDEX, []);
+  return checks.find((c) => c.hash === hash);
 }
 
 // Saves the uploaded file alongside the check record so it can be downloaded later.

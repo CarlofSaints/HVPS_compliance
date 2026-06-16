@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { requirePermission } from "@/lib/rolesData";
 import { runComplianceCheckOnFile } from "@/lib/complianceEngine";
-import { addComplianceCheck } from "@/lib/complianceCheckData";
+import {
+  addComplianceCheck,
+  findComplianceCheckByHash,
+} from "@/lib/complianceCheckData";
 import { v4 as uuidv4 } from "uuid";
 
 // Web search + large PDF extraction + Claude API can take time
@@ -25,8 +29,26 @@ export async function POST(req: NextRequest) {
 
     const ext = file.name.split(".").pop() || "pdf";
     const buffer = Buffer.from(await file.arrayBuffer());
-
     const docName = name || file.name;
+
+    // Duplicate detection: if this exact file was already checked, return the
+    // saved result instead of re-running the AI (saves cost + clutter).
+    const hash = createHash("sha256").update(buffer).digest("hex");
+    const existing = await findComplianceCheckByHash(hash);
+    if (existing) {
+      return NextResponse.json({
+        score: existing.score,
+        summary: existing.summary,
+        risks: existing.risks,
+        sources: existing.sources,
+        id: existing.id,
+        name: existing.name,
+        filename: existing.filename,
+        duplicate: true,
+        checkedAt: existing.checkedAt,
+      });
+    }
+
     const result = await runComplianceCheckOnFile(
       buffer,
       ext,
@@ -50,6 +72,7 @@ export async function POST(req: NextRequest) {
           name: docName,
           filename: file.name,
           ext,
+          hash,
           score: result.score,
           summary: result.summary,
           risks: result.risks,
