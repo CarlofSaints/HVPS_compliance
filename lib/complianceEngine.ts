@@ -59,7 +59,14 @@ Analyze this ${typeLabel} and return a JSON object with this exact structure:
   ]
 }
 
-Be thorough but fair. A score of 100 means fully compliant. Identify specific sections that need attention. Return ONLY the JSON object, no other text.`;
+Be thorough but fair. A score of 100 means fully compliant. Identify specific sections that need attention.
+
+GROUPING — report each distinct compliance issue exactly once:
+- Consolidate related observations that stem from the same underlying gap, the same section, or the same requirement into a SINGLE risk entry (use its "suggestion" to cover the sub-points).
+- Do NOT split one issue across multiple entries, and do NOT list the same problem under different sections.
+- Each risk in the array must be a distinct, non-overlapping issue.
+
+Return ONLY the JSON object, no other text.`;
 }
 
 // JSON Schema for structured outputs — guarantees the model returns valid,
