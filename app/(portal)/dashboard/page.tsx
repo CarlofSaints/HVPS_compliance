@@ -30,6 +30,14 @@ const DASH_STATUS_META: { key: keyof StatusCounts; label: string; text: string }
   { key: "not_an_issue", label: "Not an issue for HVPS", text: "text-gray-600" },
 ];
 
+// Compact per-row pills for the grid's Status column.
+const STATUS_PILLS: { key: keyof StatusCounts; short: string; pill: string }[] = [
+  { key: "needs_addressing", short: "to address", pill: "bg-red-100 text-red-700" },
+  { key: "in_progress", short: "in progress", pill: "bg-amber-100 text-amber-700" },
+  { key: "addressed", short: "addressed", pill: "bg-emerald-100 text-emerald-700" },
+  { key: "not_an_issue", short: "not an issue", pill: "bg-gray-100 text-gray-600" },
+];
+
 export default function DashboardPage() {
   const { session, loading } = useAuth("view_dashboard");
   const [checks, setChecks] = useState<CheckSummary[]>([]);
@@ -158,6 +166,7 @@ export default function DashboardPage() {
                   <th className="pb-2 font-medium">Document</th>
                   <th className="pb-2 font-medium">Score</th>
                   <th className="pb-2 font-medium">Issues to fix</th>
+                  <th className="pb-2 font-medium">Status</th>
                   <th className="pb-2 font-medium">Checked by</th>
                   <th className="pb-2 font-medium">Date</th>
                 </tr>
@@ -194,6 +203,29 @@ export default function DashboardPage() {
                         <span className="text-gray-700">
                           {c.issueCount} {c.issueCount === 1 ? "issue" : "issues"}
                         </span>
+                      )}
+                    </td>
+                    <td className="py-3">
+                      {c.issueCount === 0 || !c.statusCounts ? (
+                        <span className="text-gray-300">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {STATUS_PILLS.map((s) =>
+                            c.statusCounts && c.statusCounts[s.key] > 0 ? (
+                              <span
+                                key={s.key}
+                                className={`text-[11px] px-1.5 py-0.5 rounded ${s.pill}`}
+                              >
+                                {c.statusCounts[s.key]} {s.short}
+                              </span>
+                            ) : null
+                          )}
+                          {c.statusCounts.unreviewed > 0 && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">
+                              {c.statusCounts.unreviewed} untagged
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="py-3 text-gray-500">{c.checkedByName}</td>
