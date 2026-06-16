@@ -12,6 +12,8 @@ interface PolicyOption {
   name: string;
 }
 
+type RiskStatus = "not_an_issue" | "needs_addressing" | "in_progress" | "addressed";
+
 interface CheckResult {
   score: number;
   summary: string;
@@ -21,9 +23,23 @@ interface CheckResult {
     description: string;
     guideline_reference: string;
     suggestion: string;
+    status?: RiskStatus;
   }[];
   sources?: { title: string; url: string }[];
 }
+
+// Order/labels/colours for the per-issue workflow status controls + summary.
+const STATUS_META: {
+  key: RiskStatus;
+  label: string;
+  active: string;
+  text: string;
+}[] = [
+  { key: "needs_addressing", label: "Needs to be addressed", active: "bg-risk-high border-risk-high text-white", text: "text-risk-high" },
+  { key: "in_progress", label: "In progress", active: "bg-amber-500 border-amber-500 text-white", text: "text-amber-600" },
+  { key: "addressed", label: "Has been addressed in new policy", active: "bg-emerald-500 border-emerald-500 text-white", text: "text-emerald-600" },
+  { key: "not_an_issue", label: "Not an issue for HVPS", active: "bg-gray-500 border-gray-500 text-white", text: "text-gray-600" },
+];
 
 export default function CompliancePage() {
   const { session, loading } = useAuth("check_compliance");
@@ -76,6 +92,33 @@ export default function CompliancePage() {
     // Drop ?check=<id> so the load-saved-check effect doesn't re-fire.
     if (window.location.search) {
       window.history.replaceState(null, "", "/compliance");
+    }
+  };
+
+  const setRiskStatus = async (index: number, status: RiskStatus) => {
+    if (!loadedCheck || !result) return;
+    const current = result.risks[index]?.status;
+    const next: RiskStatus | null = current === status ? null : status; // click again to clear
+
+    // Optimistic update so the UI feels instant.
+    setResult((prev) =>
+      prev
+        ? { ...prev, risks: prev.risks.map((r, i) => (i === index ? { ...r, status: next ?? undefined } : r)) }
+        : prev
+    );
+
+    const res = await authFetch(`/api/compliance/checks/${loadedCheck.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ riskIndex: index, status: next }),
+    });
+    if (!res.ok) {
+      setToast({ message: "Could not save status. Please try again.", type: "error" });
+      setResult((prev) =>
+        prev
+          ? { ...prev, risks: prev.risks.map((r, i) => (i === index ? { ...r, status: current } : r)) }
+          : prev
+      );
     }
   };
 
@@ -293,6 +336,19 @@ export default function CompliancePage() {
             </div>
             <p className="text-sm text-gray-600 mb-4">{result.summary}</p>
 
+            {loadedCheck && result.risks.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 mb-5">
+                {STATUS_META.map((s) => (
+                  <div key={s.key} className="border border-gray-100 rounded-lg px-3 py-2">
+                    <p className={`text-2xl font-bold ${s.text}`}>
+                      {result.risks.filter((r) => r.status === s.key).length}
+                    </p>
+                    <p className="text-[11px] text-gray-500 leading-tight">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <h3 className="text-sm font-medium text-gray-500 mb-3">
               RISKS ({result.risks.length})
             </h3>
@@ -313,6 +369,26 @@ export default function CompliancePage() {
                   <p className="text-xs text-primary mt-1">
                     {risk.suggestion}
                   </p>
+                  {loadedCheck && (
+                    <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-50">
+                      {STATUS_META.map((s) => {
+                        const active = risk.status === s.key;
+                        return (
+                          <button
+                            key={s.key}
+                            onClick={() => setRiskStatus(i, s.key)}
+                            className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                              active
+                                ? s.active
+                                : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
               {result.risks.length === 0 && (

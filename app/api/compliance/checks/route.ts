@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/rolesData";
-import { getComplianceChecks } from "@/lib/complianceCheckData";
+import { getComplianceChecks, countStatuses } from "@/lib/complianceCheckData";
 
 export const dynamic = "force-dynamic";
 
@@ -9,12 +9,14 @@ export async function GET(req: NextRequest) {
   if (session instanceof NextResponse) return session;
 
   const checks = await getComplianceChecks();
-  // Lean payload for the dashboard grid (no full risk text).
+  // Lean payload for the dashboard grid (no full risk text) + per-check status
+  // breakdown so the dashboard can aggregate issues by status.
   const list = checks.map((c) => ({
     id: c.id,
     name: c.name,
     score: c.score,
     issueCount: c.issueCount,
+    statusCounts: countStatuses(c.risks),
     checkedByName: c.checkedByName,
     checkedAt: c.checkedAt,
   }));

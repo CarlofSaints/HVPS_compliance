@@ -5,14 +5,30 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import DashboardCard from "@/components/DashboardCard";
 
+interface StatusCounts {
+  not_an_issue: number;
+  needs_addressing: number;
+  in_progress: number;
+  addressed: number;
+  unreviewed: number;
+}
+
 interface CheckSummary {
   id: string;
   name: string;
   score: number;
   issueCount: number;
+  statusCounts?: StatusCounts;
   checkedByName: string;
   checkedAt: string;
 }
+
+const DASH_STATUS_META: { key: keyof StatusCounts; label: string; text: string }[] = [
+  { key: "needs_addressing", label: "Needs to be addressed", text: "text-risk-high" },
+  { key: "in_progress", label: "In progress", text: "text-amber-600" },
+  { key: "addressed", label: "Addressed in new policy", text: "text-emerald-600" },
+  { key: "not_an_issue", label: "Not an issue for HVPS", text: "text-gray-600" },
+];
 
 export default function DashboardPage() {
   const { session, loading } = useAuth("view_dashboard");
@@ -28,6 +44,19 @@ export default function DashboardPage() {
 
   const totalChecks = checks.length;
   const nonCompliant = checks.filter((c) => c.issueCount > 0).length;
+  const statusTotals = checks.reduce(
+    (acc, c) => {
+      if (c.statusCounts) {
+        acc.not_an_issue += c.statusCounts.not_an_issue;
+        acc.needs_addressing += c.statusCounts.needs_addressing;
+        acc.in_progress += c.statusCounts.in_progress;
+        acc.addressed += c.statusCounts.addressed;
+        acc.unreviewed += c.statusCounts.unreviewed;
+      }
+      return acc;
+    },
+    { not_an_issue: 0, needs_addressing: 0, in_progress: 0, addressed: 0, unreviewed: 0 } as StatusCounts
+  );
 
   if (loading) return <div className="p-6">Loading...</div>;
 
@@ -90,6 +119,25 @@ export default function DashboardPage() {
           }
         />
       </div>
+
+      {checks.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+          <h2 className="text-lg font-semibold text-dark mb-4">Issues by Status</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {DASH_STATUS_META.map((s) => (
+              <div key={s.key} className="border border-gray-100 rounded-lg p-4">
+                <p className={`text-3xl font-bold ${s.text}`}>{statusTotals[s.key]}</p>
+                <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          {statusTotals.unreviewed > 0 && (
+            <p className="text-xs text-gray-400 mt-3">
+              {statusTotals.unreviewed} issue{statusTotals.unreviewed === 1 ? "" : "s"} not yet reviewed.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
         <h2 className="text-lg font-semibold text-dark mb-4">Compliance Checks</h2>
