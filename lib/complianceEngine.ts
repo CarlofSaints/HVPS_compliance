@@ -63,7 +63,7 @@ Analyze this ${typeLabel} and return a JSON object with this exact structure:
 Be thorough but fair. A score of 100 means fully compliant. Identify specific sections that need attention. Return ONLY the JSON object, no other text.`;
 
   const message = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-opus-4-8",
     max_tokens: 4096,
     messages: [{ role: "user", content: prompt }],
   });
