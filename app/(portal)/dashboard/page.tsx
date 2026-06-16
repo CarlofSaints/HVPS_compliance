@@ -106,6 +106,7 @@ export default function DashboardPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-400 border-b border-gray-100">
+                  <th className="pb-2 font-medium w-10">#</th>
                   <th className="pb-2 font-medium">Document</th>
                   <th className="pb-2 font-medium">Score</th>
                   <th className="pb-2 font-medium">Issues to fix</th>
@@ -114,8 +115,9 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {checks.map((c) => (
+                {checks.map((c, i) => (
                   <tr key={c.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 text-gray-400">{i + 1}</td>
                     <td className="py-3">
                       <a
                         href={`/compliance?check=${c.id}`}
