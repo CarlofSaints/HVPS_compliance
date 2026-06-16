@@ -34,6 +34,7 @@ export default function CompliancePage() {
   const [name, setName] = useState("");
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<CheckResult | null>(null);
+  const [loadedCheck, setLoadedCheck] = useState<{ id: string; name: string; filename: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const fetchPolicies = useCallback(async () => {
@@ -45,9 +46,47 @@ export default function CompliancePage() {
     if (session) fetchPolicies();
   }, [session, fetchPolicies]);
 
+  // When opened from the dashboard with ?check=<id>, re-load that saved check
+  // and show its results exactly as if it had just been run.
+  useEffect(() => {
+    if (!session) return;
+    const checkId = new URLSearchParams(window.location.search).get("check");
+    if (!checkId) return;
+    (async () => {
+      const res = await authFetch(`/api/compliance/checks/${checkId}`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setResult({ score: data.score, summary: data.summary, risks: data.risks, sources: data.sources });
+        setLoadedCheck({ id: data.id, name: data.name, filename: data.filename });
+        setName(data.name);
+      } else {
+        setToast({ message: "Could not load saved check.", type: "error" });
+      }
+    })();
+  }, [session]);
+
+  const downloadDoc = async () => {
+    if (!loadedCheck) return;
+    const res = await authFetch(`/api/compliance/checks/${loadedCheck.id}/file`);
+    if (!res.ok) {
+      setToast({ message: "Could not download document.", type: "error" });
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = loadedCheck.filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const handleCheck = async () => {
     setChecking(true);
     setResult(null);
+    setLoadedCheck(null);
 
     try {
       if (mode === "existing" && selectedPolicy) {
@@ -72,7 +111,11 @@ export default function CompliancePage() {
         });
         const contentType = res.headers.get("content-type") || "";
         if (res.ok && contentType.includes("application/json")) {
-          setResult(await res.json());
+          const data = await res.json();
+          setResult(data);
+          if (data.id && file) {
+            setLoadedCheck({ id: data.id, name: name || file.name, filename: file.name });
+          }
         } else if (contentType.includes("application/json")) {
           const err = await res.json();
           setToast({ message: err.error || "Check failed", type: "error" });
@@ -190,6 +233,23 @@ export default function CompliancePage() {
 
         {result && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            {loadedCheck && (
+              <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-100">
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-400">Document</p>
+                  <p className="text-sm font-medium text-dark truncate">{loadedCheck.name}</p>
+                </div>
+                <button
+                  onClick={downloadDoc}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download
+                </button>
+              </div>
+            )}
             <div className="text-center mb-6">
               <p className="text-sm text-gray-500 mb-2">Compliance Score</p>
               <ComplianceScore score={result.score} size="lg" />

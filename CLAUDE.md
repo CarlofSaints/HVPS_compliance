@@ -3,10 +3,13 @@
 ## Project Location
 `C:\Users\CarlDosSantos-(OUTER\Projects\hvps-compliance`
 
-## RESOLVED 2026-06-16: Compliance Check "fast timeout" / 500 — retired model
-**Root cause:** `lib/complianceEngine.ts` called model `claude-sonnet-4-20250514`, which **retired June 15, 2026**. From June 16 on, the Anthropic API returns an immediate 404 `not_found_error` on every call — surfaces in the UI as a fast failure / "timed out very quickly". The earlier "500 on every attempt" notes were from when the model was still valid; it became a hard failure the day the model retired.
-**Fix:** changed model to `claude-opus-4-8` (current catalog). No other API changes needed — the request uses no `thinking`/`temperature`/`budget_tokens`/prefill, so it's a clean drop-in.
-**Note:** the old fallback suggestion `claude-3-5-sonnet-20241022` is even more retired (Oct 2025) — do NOT use it. Current valid IDs: `claude-opus-4-8`, `claude-sonnet-4-6`, `claude-haiku-4-5`. Always verify model IDs against the current catalog rather than pinning dated snapshots that retire.
+## RESOLVED 2026-06-16: Compliance Check failures (TWO root causes, both fixed)
+
+**Bug 1 — "fast timeout" / instant 404 (retired model).** `lib/complianceEngine.ts` pinned model `claude-sonnet-4-20250514`, which **retired June 15, 2026**. From June 16 on, the Anthropic API returns an immediate 404 `not_found_error` — surfaces in the UI as a fast failure / "timed out very quickly". Fixed by switching to `claude-opus-4-8`. (The old fallback note suggesting `claude-3-5-sonnet-20241022` is even more retired — Oct 2025 — do NOT use it. Current valid IDs: `claude-opus-4-8`, `claude-sonnet-4-6`, `claude-haiku-4-5`. Verify IDs against the live catalog; never pin dated snapshots.)
+
+**Bug 2 — platform 500 on uploaded PDFs (fragile PDF parser).** After Bug 1, uploads still 500'd with a *non-JSON* response (the generic "Server error (500)… try a smaller document" in `compliance/page.tsx`). Non-JSON = the function was killed at the platform level (OOM / native-module load failure) **before** the route's try/catch could return JSON. Root cause: `pdf-parse@2` pulls in `pdfjs-dist` 5.x + `@napi-rs/canvas` (native) — too heavy/fragile for Vercel serverless.
+**Fix:** stopped parsing PDFs server-side entirely. New `runComplianceCheckOnFile(buffer, ext, name, mode)` in `complianceEngine.ts` sends PDFs to Claude as a **native base64 `document` block** (GA, no beta header); txt/docx still text-extract via `lib/pdfParser.ts` (no native deps). All three check routes (`compliance/check`, `policies/[id]/check`, `documents/[id]/check`) share this one entry point. `pdf-parse` + `@types/pdf-parse` removed.
+**Pattern:** prefer Claude's native PDF support (`document` content block) over server-side PDF libraries on serverless — avoids OOM/native-binary crashes that bypass try/catch.
 
 ### If it still fails after the model fix, debug here
 1. **Check `ANTHROPIC_API_KEY`** is set in the Vercel env vars (and the key has access to the chosen model).

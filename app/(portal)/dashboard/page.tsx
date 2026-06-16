@@ -1,11 +1,33 @@
 "use client";
 
-import { useAuth } from "@/lib/useAuth";
+import { useAuth, authFetch } from "@/lib/useAuth";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import DashboardCard from "@/components/DashboardCard";
 
+interface CheckSummary {
+  id: string;
+  name: string;
+  score: number;
+  issueCount: number;
+  checkedByName: string;
+  checkedAt: string;
+}
+
 export default function DashboardPage() {
   const { session, loading } = useAuth("view_dashboard");
+  const [checks, setChecks] = useState<CheckSummary[]>([]);
+
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      const res = await authFetch("/api/compliance/checks", { cache: "no-store" });
+      if (res.ok) setChecks(await res.json());
+    })();
+  }, [session]);
+
+  const totalChecks = checks.length;
+  const nonCompliant = checks.filter((c) => c.issueCount > 0).length;
 
   if (loading) return <div className="p-6">Loading...</div>;
 
@@ -36,7 +58,7 @@ export default function DashboardPage() {
         />
         <DashboardCard
           title="Compliance Checks"
-          value={0}
+          value={totalChecks}
           subtitle="Total checks run"
           color="bg-emerald-500"
           icon={
@@ -47,8 +69,8 @@ export default function DashboardPage() {
         />
         <DashboardCard
           title="Non-Compliant"
-          value={0}
-          subtitle="Policies with issues"
+          value={nonCompliant}
+          subtitle="Checks with issues"
           color="bg-risk-high"
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -67,6 +89,73 @@ export default function DashboardPage() {
             </svg>
           }
         />
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+        <h2 className="text-lg font-semibold text-dark mb-4">Compliance Checks</h2>
+        {checks.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No documents have been checked yet. Run a check from the{" "}
+            <a href="/compliance" className="text-primary hover:underline">
+              Compliance Check
+            </a>{" "}
+            page.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-400 border-b border-gray-100">
+                  <th className="pb-2 font-medium">Document</th>
+                  <th className="pb-2 font-medium">Score</th>
+                  <th className="pb-2 font-medium">Issues to fix</th>
+                  <th className="pb-2 font-medium">Checked by</th>
+                  <th className="pb-2 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {checks.map((c) => (
+                  <tr key={c.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3">
+                      <a
+                        href={`/compliance?check=${c.id}`}
+                        className="text-primary font-medium hover:underline"
+                      >
+                        {c.name}
+                      </a>
+                    </td>
+                    <td className="py-3">
+                      <span
+                        className={`font-semibold ${
+                          c.score >= 80
+                            ? "text-emerald-600"
+                            : c.score >= 50
+                            ? "text-amber-600"
+                            : "text-risk-high"
+                        }`}
+                      >
+                        {c.score}%
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      {c.issueCount === 0 ? (
+                        <span className="text-emerald-600">None</span>
+                      ) : (
+                        <span className="text-gray-700">
+                          {c.issueCount} {c.issueCount === 1 ? "issue" : "issues"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 text-gray-500">{c.checkedByName}</td>
+                    <td className="py-3 text-gray-500">
+                      {new Date(c.checkedAt).toLocaleDateString("en-GB")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
