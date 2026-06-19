@@ -1,6 +1,9 @@
 import { put, del, list } from "@vercel/blob";
+import { branding } from "@/lib/branding";
 
-const PREFIX = "hvps/";
+// Tenant-scoped blob path prefix. Each school has its own Blob store, so this
+// is mainly for tidiness — HVPS stays "hvps/" (key unchanged), Jeppe → "jeppe/".
+const PREFIX = `${branding.key}/`;
 
 function blobKey(path: string): string {
   return PREFIX + path;
