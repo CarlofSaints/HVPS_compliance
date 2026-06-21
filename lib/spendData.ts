@@ -37,6 +37,8 @@ export interface SpendApplication {
   submittedBy: string;
   submittedByName: string;
   submittedAt: string;
+  // Manually-tracked execution progress, independent of the approval status.
+  projectProgress?: "not_started" | "in_progress" | "completed";
   approvals: SpendApproval[];
   // Applicant (on-behalf-of) fields
   applicantName: string;

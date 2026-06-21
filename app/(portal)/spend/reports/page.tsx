@@ -7,9 +7,26 @@ import {
   buildSpendReport,
   formatRand,
   type SpendReport,
+  type ProjectRow,
 } from "@/lib/spendReport";
-import { STATUS_DISPLAY } from "@/lib/spendData";
 import type { SpendApplication } from "@/lib/spendData";
+
+type SortKey =
+  | "projectName"
+  | "owner"
+  | "requested"
+  | "quoteCount"
+  | "selectedSupplier"
+  | "totalSpend"
+  | "spendVsRequestPct"
+  | "progress";
+
+const PROGRESS_PILL: Record<string, string> = {
+  "Not Started": "bg-gray-100 text-gray-600",
+  "In Progress": "bg-amber-100 text-amber-700",
+  Complete: "bg-emerald-100 text-emerald-700",
+  Declined: "bg-red-100 text-red-700",
+};
 
 interface SpendSettings {
   capexBudget: number;
@@ -21,6 +38,45 @@ export default function SpendReportsPage() {
   const [report, setReport] = useState<SpendReport | null>(null);
   const [settings, setSettings] = useState<SpendSettings | null>(null);
   const [fetching, setFetching] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>("requested");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      // Text columns default to A→Z, numbers to high→low.
+      setSortDir(
+        key === "projectName" ||
+          key === "owner" ||
+          key === "selectedSupplier" ||
+          key === "progress"
+          ? "asc"
+          : "desc"
+      );
+    }
+  };
+
+  const exportExcel = async (rows: ProjectRow[], year: number) => {
+    const XLSX = await import("xlsx");
+    const data = rows.map((p) => ({
+      Project: p.projectName,
+      Owner: p.owner,
+      "Total Requested": Math.round(p.requested),
+      "Quotes Submitted": p.quoteCount,
+      "Service Provider": p.selectedSupplier || "",
+      "Total Spend": Math.round(p.totalSpend),
+      "Spend vs Request %":
+        p.spendVsRequestPct === null ? "" : Math.round(p.spendVsRequestPct),
+      Sources: [...new Set(p.sources)].join(", "),
+      Progress: p.progress,
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Projects FY${year}`);
+    XLSX.writeFile(wb, `spend-projects-FY${year}.xlsx`);
+  };
 
   const load = useCallback(async () => {
     setFetching(true);
@@ -53,6 +109,21 @@ export default function SpendReportsPage() {
 
   // Bar scale for the CAPEX budget chart.
   const capexMax = Math.max(capex.budget, capex.committed, capex.actual, 1);
+
+  // Sorted view of the projects grid.
+  const sortedProjects = [...byProject].sort((a, b) => {
+    const av = a[sortKey];
+    const bv = b[sortKey];
+    let cmp: number;
+    if (av === null || av === undefined) cmp = bv === null || bv === undefined ? 0 : 1;
+    else if (bv === null || bv === undefined) cmp = -1;
+    else if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
+    else cmp = String(av).localeCompare(String(bv));
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const sortArrow = (key: SortKey) =>
+    sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
   return (
     <div>
@@ -180,42 +251,51 @@ export default function SpendReportsPage() {
 
       {/* Per project */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="font-medium text-sm text-gray-500 mb-4">
-          SPEND PER PROJECT
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-medium text-sm text-gray-500">
+            PROJECTS
+          </h3>
+          <button
+            onClick={() => exportExcel(sortedProjects, capex.year)}
+            disabled={byProject.length === 0}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export to Excel
+          </button>
+        </div>
         {byProject.length === 0 ? (
           <p className="text-sm text-gray-400 italic">
-            No applications yet.
+            No applications for FY {capex.year}.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm whitespace-nowrap">
               <thead className="text-left text-gray-500">
                 <tr className="border-b border-gray-100">
-                  <th className="py-2 font-medium">Project</th>
-                  <th className="py-2 font-medium">Sources</th>
-                  <th className="py-2 font-medium">Status</th>
-                  <th className="py-2 font-medium text-right">Requested</th>
-                  <th className="py-2 font-medium text-right">Committed</th>
-                  <th className="py-2 font-medium text-right">Actual</th>
+                  <SortTh label="Project" k="projectName" cur={sortKey} arrow={sortArrow} onClick={toggleSort} />
+                  <SortTh label="Owner" k="owner" cur={sortKey} arrow={sortArrow} onClick={toggleSort} />
+                  <SortTh label="Requested" k="requested" cur={sortKey} arrow={sortArrow} onClick={toggleSort} align="right" />
+                  <SortTh label="Quotes" k="quoteCount" cur={sortKey} arrow={sortArrow} onClick={toggleSort} align="center" />
+                  <SortTh label="Service Provider" k="selectedSupplier" cur={sortKey} arrow={sortArrow} onClick={toggleSort} />
+                  <SortTh label="Total Spend" k="totalSpend" cur={sortKey} arrow={sortArrow} onClick={toggleSort} align="right" />
+                  <SortTh label="Spend vs Req." k="spendVsRequestPct" cur={sortKey} arrow={sortArrow} onClick={toggleSort} align="right" />
+                  <SortTh label="Progress" k="progress" cur={sortKey} arrow={sortArrow} onClick={toggleSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {byProject.map((p) => (
+                {sortedProjects.map((p) => (
                   <tr key={p.id}>
-                    <td className="py-2.5">
+                    <td className="py-2.5 pr-3">
                       <Link
                         href={`/spend/${p.id}`}
                         className="text-primary hover:underline font-medium"
                       >
                         {p.projectName}
                       </Link>
-                      <p className="text-xs text-gray-400">
-                        {p.submittedByName}
-                      </p>
-                    </td>
-                    <td className="py-2.5">
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1 mt-1">
                         {[...new Set(p.sources)].map((src) => (
                           <span
                             key={src}
@@ -226,19 +306,44 @@ export default function SpendReportsPage() {
                         ))}
                       </div>
                     </td>
-                    <td className="py-2.5">
-                      <span className="text-xs text-gray-500">
-                        {STATUS_DISPLAY[p.status] || p.status}
-                      </span>
-                    </td>
-                    <td className="py-2.5 text-right text-gray-500">
+                    <td className="py-2.5 pr-3 text-gray-600">{p.owner}</td>
+                    <td className="py-2.5 pr-3 text-right text-gray-500">
                       {formatRand(p.requested)}
                     </td>
-                    <td className="py-2.5 text-right font-medium text-dark">
-                      {formatRand(p.committed)}
+                    <td className="py-2.5 pr-3 text-center text-gray-600">
+                      {p.quoteCount}
                     </td>
-                    <td className="py-2.5 text-right text-emerald-600">
-                      {formatRand(p.actual)}
+                    <td className="py-2.5 pr-3 text-gray-600">
+                      {p.selectedSupplier || (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-medium text-dark">
+                      {p.totalSpend > 0 ? formatRand(p.totalSpend) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right">
+                      {p.spendVsRequestPct === null ? (
+                        <span className="text-gray-300">—</span>
+                      ) : (
+                        <span
+                          className={
+                            p.spendVsRequestPct > 100
+                              ? "text-risk-high font-medium"
+                              : "text-gray-600"
+                          }
+                        >
+                          {Math.round(p.spendVsRequestPct)}%
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                          PROGRESS_PILL[p.progress] || "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {p.progress}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -248,6 +353,38 @@ export default function SpendReportsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function SortTh({
+  label,
+  k,
+  cur,
+  arrow,
+  onClick,
+  align = "left",
+}: {
+  label: string;
+  k: SortKey;
+  cur: SortKey;
+  arrow: (k: SortKey) => string;
+  onClick: (k: SortKey) => void;
+  align?: "left" | "right" | "center";
+}) {
+  return (
+    <th
+      onClick={() => onClick(k)}
+      className={`py-2 pr-3 font-medium cursor-pointer select-none hover:text-gray-700 ${
+        align === "right"
+          ? "text-right"
+          : align === "center"
+          ? "text-center"
+          : "text-left"
+      } ${cur === k ? "text-gray-700" : ""}`}
+    >
+      {label}
+      {arrow(k)}
+    </th>
   );
 }
 

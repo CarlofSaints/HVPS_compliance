@@ -38,6 +38,7 @@ interface SpendDetail {
   submittedBy: string;
   submittedByName: string;
   submittedAt: string;
+  projectProgress?: "not_started" | "in_progress" | "completed";
   applicantName?: string;
   applicantSurname?: string;
   applicantEmail?: string;
@@ -203,6 +204,25 @@ export default function SpendDetailPage() {
     setCompleting(false);
   };
 
+  const handleSetProgress = async (
+    progress: "not_started" | "in_progress" | "completed"
+  ) => {
+    setSubmitting(true);
+    const res = await authFetch(`/api/spend/${spendId}/progress`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ progress }),
+    });
+    if (res.ok) {
+      setToast({ message: "Progress updated", type: "success" });
+      fetchData();
+    } else {
+      const err = await res.json();
+      setToast({ message: err.error || "Failed", type: "error" });
+    }
+    setSubmitting(false);
+  };
+
   const handleForceApprove = async () => {
     if (!confirm("Mark this application as already approved? This skips the normal approval flow.")) return;
     setSubmitting(true);
@@ -246,6 +266,21 @@ export default function SpendDetailPage() {
     data.status === "approved" &&
     data.selectedQuoteIndex === undefined &&
     (canApprove || isAdmin);
+
+  // Manual execution progress (falls back to a status-derived default).
+  const PROGRESS_OPTS = [
+    { key: "not_started", label: "Not Started" },
+    { key: "in_progress", label: "In Progress" },
+    { key: "completed", label: "Completed" },
+  ] as const;
+  const effectiveProgress: "not_started" | "in_progress" | "completed" =
+    data.projectProgress ||
+    (data.status === "completed"
+      ? "completed"
+      : data.status === "approved"
+      ? "in_progress"
+      : "not_started");
+  const canSetProgress = isSubmitter || canApprove || isAdmin;
 
   const statusColors: Record<string, string> = {
     pending: "bg-risk-low/10 text-risk-low border-risk-low/20",
@@ -750,6 +785,43 @@ export default function SpendDetailPage() {
 
         {/* Approval Buttons Panel */}
         <div className="lg:col-span-1 space-y-4">
+          {/* Project progress */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h3 className="font-medium text-sm text-gray-500 mb-3">
+              PROJECT PROGRESS
+            </h3>
+            {canSetProgress ? (
+              <div className="grid grid-cols-3 gap-2">
+                {PROGRESS_OPTS.map((opt) => {
+                  const active = effectiveProgress === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      onClick={() => handleSetProgress(opt.key)}
+                      disabled={submitting || active}
+                      className={`py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-100 ${
+                        active
+                          ? "bg-primary text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-dark">
+                {PROGRESS_OPTS.find((o) => o.key === effectiveProgress)?.label}
+              </p>
+            )}
+            {!data.projectProgress && (
+              <p className="text-xs text-gray-400 mt-2">
+                Auto-set from approval status until you change it.
+              </p>
+            )}
+          </div>
+
           {/* Decision panel */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sticky top-6">
             <h3 className="font-medium text-sm text-gray-500 mb-3">

@@ -11,15 +11,26 @@ export interface SourceBreakdown {
   actual: number; // completed only
 }
 
+export type ProjectProgress =
+  | "Not Started"
+  | "In Progress"
+  | "Complete"
+  | "Declined";
+
 export interface ProjectRow {
   id: string;
   projectName: string;
   status: string;
-  submittedByName: string;
+  progress: ProjectProgress;
+  owner: string; // person the spend was requested for
   sources: string[];
-  requested: number;
+  requested: number; // initial requested/estimated amount
   committed: number;
   actual: number;
+  totalSpend: number; // approved amount, or actual (incl. overrun) once complete
+  spendVsRequestPct: number | null; // totalSpend / requested; null until there's spend
+  quoteCount: number;
+  selectedSupplier: string; // final service provider, once a quote is chosen
 }
 
 export interface CapexSummary {
@@ -67,6 +78,37 @@ export function pendingSpendCount(
   return apps.filter(
     (a) => PENDING_STATUSES.has(a.status) && inFinancialYear(a.submittedAt, year)
   ).length;
+}
+
+// Display labels for the manual progress field.
+export const PROGRESS_LABELS: Record<string, ProjectProgress> = {
+  not_started: "Not Started",
+  in_progress: "In Progress",
+  completed: "Complete",
+};
+
+/**
+ * Project progress. Uses the manually-set `projectProgress` when present,
+ * otherwise falls back to one derived from the approval/completion status.
+ */
+function progressOf(
+  app: Pick<SpendApplication, "status" | "projectProgress">
+): ProjectProgress {
+  if (app.projectProgress && PROGRESS_LABELS[app.projectProgress]) {
+    return PROGRESS_LABELS[app.projectProgress];
+  }
+  if (app.status === "completed") return "Complete";
+  if (app.status === "approved") return "In Progress";
+  if (app.status === "rejected") return "Declined";
+  return "Not Started"; // pending / pending_decision / requires_changes
+}
+
+/** Who the spend was requested for (the applicant, even if filed on behalf). */
+function ownerOf(app: SpendApplication): string {
+  if (app.submittedOnBehalf && app.applicantName) {
+    return `${app.applicantName} ${app.applicantSurname || ""}`.trim();
+  }
+  return app.submittedByName;
 }
 
 /** The Rand figure a request is committed/actually-spent at. */
@@ -135,17 +177,31 @@ export function buildSpendReport(
   for (const app of scoped) {
     statusCounts[app.status] = (statusCounts[app.status] || 0) + 1;
 
-    // Rejected requests don't count toward any spend figure.
+    const owner = ownerOf(app);
+    const quoteCount = app.quotes?.length || 0;
+    const selectedSupplier =
+      app.selectedQuoteIndex !== undefined &&
+      app.quoteDetails?.[app.selectedQuoteIndex]
+        ? app.quoteDetails[app.selectedQuoteIndex].supplierName
+        : "";
+
+    // Rejected requests don't count toward any spend figure (but still show in
+    // the grid with their original requested amount, marked Declined).
     if (app.status === "rejected") {
       byProject.push({
         id: app.id,
         projectName: app.projectName,
         status: app.status,
-        submittedByName: app.submittedByName,
+        progress: progressOf(app),
+        owner,
         sources: getFundingAllocations(app).map((a) => a.source),
-        requested: 0,
+        requested: app.estimatedAmount || 0,
         committed: 0,
         actual: 0,
+        totalSpend: 0,
+        spendVsRequestPct: null,
+        quoteCount,
+        selectedSupplier,
       });
       continue;
     }
@@ -178,15 +234,28 @@ export function buildSpendReport(
     totals.committed += projCommitted;
     totals.actual += projActual;
 
+    // "Total spend" = actual (incl. overrun) once complete, else the approved
+    // commitment; 0 while still awaiting approval.
+    const totalSpend = isActual ? projActual : projCommitted;
+    const spendVsRequestPct =
+      totalSpend > 0 && projRequested > 0
+        ? (totalSpend / projRequested) * 100
+        : null;
+
     byProject.push({
       id: app.id,
       projectName: app.projectName,
       status: app.status,
-      submittedByName: app.submittedByName,
+      progress: progressOf(app),
+      owner,
       sources: getFundingAllocations(app).map((a) => a.source),
       requested: projRequested,
       committed: projCommitted,
       actual: projActual,
+      totalSpend,
+      spendVsRequestPct,
+      quoteCount,
+      selectedSupplier,
     });
   }
 
