@@ -4,6 +4,7 @@ import { useAuth, authFetch } from "@/lib/useAuth";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Toast from "@/components/Toast";
+import FundingSplit, { type Allocation } from "@/components/FundingSplit";
 
 interface SpendSettings {
   sourcesOfFunds: string[];
@@ -26,6 +27,7 @@ interface SpendData {
   supplierConnection: string;
   budgeted: boolean;
   sourceOfFunds: string;
+  fundingAllocations?: Allocation[];
   status: string;
   submittedBy: string;
   quoteDetails: QuoteDetail[];
@@ -58,7 +60,7 @@ export default function EditSpendPage() {
   const [estimatedAmount, setEstimatedAmount] = useState("");
   const [supplierConnection, setSupplierConnection] = useState("None");
   const [budgeted, setBudgeted] = useState(false);
-  const [sourceOfFunds, setSourceOfFunds] = useState("Fundraising");
+  const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [quotes, setQuotes] = useState<QuoteEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -87,7 +89,17 @@ export default function EditSpendPage() {
       setEstimatedAmount(spend.estimatedAmount.toString());
       setSupplierConnection(spend.supplierConnection);
       setBudgeted(spend.budgeted);
-      setSourceOfFunds(spend.sourceOfFunds);
+      // Prefer the new split; fall back to a single allocation for legacy records.
+      setAllocations(
+        spend.fundingAllocations && spend.fundingAllocations.length > 0
+          ? spend.fundingAllocations
+          : [
+              {
+                source: spend.sourceOfFunds || "Other",
+                amount: spend.estimatedAmount || 0,
+              },
+            ]
+      );
       setOnBehalf(spend.submittedOnBehalf || false);
       setApplicantName(spend.applicantName || "");
       setApplicantSurname(spend.applicantSurname || "");
@@ -149,6 +161,15 @@ export default function EditSpendPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (allocations.length === 0) {
+      setToast({
+        message: "Select at least one source of funds.",
+        type: "error",
+      });
+      return;
+    }
+
     setSubmitting(true);
 
     const formData = new FormData();
@@ -157,7 +178,11 @@ export default function EditSpendPage() {
     formData.append("estimatedAmount", estimatedAmount);
     formData.append("supplierConnection", supplierConnection);
     formData.append("budgeted", budgeted ? "yes" : "no");
-    formData.append("sourceOfFunds", sourceOfFunds);
+    formData.append("fundingAllocations", JSON.stringify(allocations));
+    formData.append(
+      "sourceOfFunds",
+      allocations.map((a) => a.source).join(", ")
+    );
     formData.append("onBehalf", onBehalf ? "yes" : "no");
 
     if (onBehalf) {
@@ -386,22 +411,21 @@ export default function EditSpendPage() {
             </div>
           </div>
 
-          {/* Source of Funds */}
+          {/* Source of Funds (multi-select with split) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Proposed Source of Funds
+              Proposed Source(s) of Funds
             </label>
-            <select
-              value={sourceOfFunds}
-              onChange={(e) => setSourceOfFunds(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-            >
-              {sourcesOfFunds.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+            <p className="text-xs text-gray-500 mb-2">
+              Tick every source this spend will draw from. If it&apos;s split,
+              enter how much comes from each.
+            </p>
+            <FundingSplit
+              sources={sourcesOfFunds}
+              value={allocations}
+              onChange={setAllocations}
+              estimatedAmount={parseFloat(estimatedAmount) || 0}
+            />
           </div>
 
           {/* Quotes */}

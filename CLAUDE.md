@@ -3,8 +3,18 @@
 ## Project Location
 `C:\Users\CarlDosSantos-(OUTER\Projects\hvps-compliance`
 
-## NEXT (2026-06-16, not started): Reporting for funding applications
-Build reporting on the **Spend / funding applications** module (`lib/spendData.ts`, `app/api/spend/*`, `app/(portal)/spend/*`). Spend apps have: submittedBy, status (submitted/approved/etc.), quotes, approve/complete/select-quote flows, CAPEX year, source of funds. Likely wants: totals by status, by year, by source of funds, approved-vs-pending spend, per-applicant breakdown, maybe export. Confirm exact metrics with Carl. Mirror the compliance-checks dashboard pattern (lean list API → client grid + summary cards). Dashboard "Spend Pending" card is still hardcoded `0` — wire it as part of this.
+## Spend reporting + multi-source funding (2026-06-21, BUILT — not yet deployed)
+Built the Spend reporting layer + changed funding source from a single dropdown to a **multi-source split**.
+
+**Funding model change (splitting allowed).** `SpendApplication` now has `fundingAllocations?: {source, amount}[]` alongside the legacy `sourceOfFunds` string (kept = comma-joined source names, for the list view + back-compat). Helper `getFundingAllocations(app)` in `lib/spendData.ts` returns the split, falling back to a single allocation from `sourceOfFunds`/`estimatedAmount` for old records. New shared control `components/FundingSplit.tsx` (checkbox per source + amount each, running total vs estimate). Wired into **New** (`spend/new`) and **Edit** (`spend/[id]/edit`) forms; both POST/PUT now send `fundingAllocations` (JSON) + a joined `sourceOfFunds`. APIs `app/api/spend/route.ts` (POST) and `app/api/spend/[id]/route.ts` (PUT) parse it. Detail page shows the per-source breakdown.
+
+**Canonical sources.** `lib/settingsData.ts` now guarantees `CAPEX`, `Maintenance (P&L)`, `Fundraising`, `Other` always exist (merged in on every `getSpendSettings()` read, canonical-first, custom extras kept). CAPEX budget + year already existed in Spend Settings (`capexBudget`, `capexYear`) — that's the "annual CAPEX budget" entry point.
+
+**Reporting engine** `lib/spendReport.ts` (pure, client-safe): `buildSpendReport(apps, {capexBudget, capexYear})`. Semantics: **committed** = status approved+completed (uses `approvedAmount ?? estimatedAmount`); **actual** = completed only (+ `budgetOverrunAmount` if over). Allocations are scaled proportionally to committed/actual. Returns `capex` summary (budget vs committed vs actual, variance both ways, pipeline), `bySource`, `byProject`, `statusCounts`, `totals`. `formatRand()` helper.
+
+**Reports page** `app/(portal)/spend/reports/page.tsx` (gated `view_all_spend`): CAPEX summary cards, budget-vs-committed-vs-actual bars, by-source grid, per-project grid. Added as a **Reports** sub-link under Spend in `components/Sidebar.tsx` (also added "Applications" sub-link → `/spend`).
+
+`npx tsc --noEmit` passes. **TODO:** deploy (`vercel --prod` from folder, after commit+push); still optional — wire dashboard "Spend Pending" card (hardcoded `0`); consider a financial-year filter (apps aren't tagged by year — report currently spans all apps vs the one configured budget); export. Marketing site (`school-compliance`) wants screenshots of this once live (mockup component already stubbed at `school-compliance/app/components/ProductPreview.tsx`).
 
 ## Status workflow on compliance issues (2026-06-16, DONE + deployed)
 Each risk in a saved check can be tagged: `not_an_issue` / `needs_addressing` / `in_progress` / `addressed` (click active again to clear). Types + `updateRiskStatus()` + `countStatuses()` in `lib/complianceCheckData.ts`. PATCH `/api/compliance/checks/[id]` `{riskIndex,status}`. List API returns per-check `statusCounts`. Compliance page: buttons under each risk (optimistic update + revert) + 4 summary cards (in the RIGHT results panel, not under the left upload block). Dashboard: "Issues by Status" aggregate cards + per-row **Status** column (compact pills) in the grid. Status controls only show for upload-based checks (they carry an `id`); "Select Existing" policy mode uses the separate policy-check store and has no status UI.

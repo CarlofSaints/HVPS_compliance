@@ -8,6 +8,14 @@ export interface QuoteDetail {
   priceExclVat: number;
 }
 
+// A single funding-source allocation on a request. A request may be split
+// across several sources (e.g. R50k CAPEX + R20k Fundraising), so the amounts
+// here should sum to the request's estimated amount.
+export interface FundingAllocation {
+  source: string;
+  amount: number;
+}
+
 export interface SpendApplication {
   id: string;
   projectName: string;
@@ -15,7 +23,8 @@ export interface SpendApplication {
   estimatedAmount: number;
   supplierConnection: string;
   budgeted: boolean;
-  sourceOfFunds: string;
+  sourceOfFunds: string; // legacy: comma-joined source names (kept for display)
+  fundingAllocations?: FundingAllocation[]; // per-source split (new)
   quotes: string[]; // file paths
   quoteDetails: QuoteDetail[];
   status:
@@ -55,6 +64,26 @@ export interface SpendApproval {
   comments: string;
   decidedAt: string;
   preferredQuoteIndex?: number;
+}
+
+// Returns the per-source split for an application, falling back to a single
+// allocation derived from the legacy `sourceOfFunds` string for older records
+// that predate splitting.
+export function getFundingAllocations(
+  app: Pick<
+    SpendApplication,
+    "fundingAllocations" | "sourceOfFunds" | "estimatedAmount"
+  >
+): FundingAllocation[] {
+  if (app.fundingAllocations && app.fundingAllocations.length > 0) {
+    return app.fundingAllocations;
+  }
+  return [
+    {
+      source: app.sourceOfFunds || "Other",
+      amount: app.estimatedAmount || 0,
+    },
+  ];
 }
 
 export const STATUS_DISPLAY: Record<string, string> = {

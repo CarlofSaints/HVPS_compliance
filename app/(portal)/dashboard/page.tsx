@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import DashboardCard from "@/components/DashboardCard";
 import { branding } from "@/lib/branding";
+import { pendingSpendCount } from "@/lib/spendReport";
 
 interface StatusCounts {
   not_an_issue: number;
@@ -42,12 +43,27 @@ const STATUS_PILLS: { key: keyof StatusCounts; short: string; pill: string }[] =
 export default function DashboardPage() {
   const { session, loading } = useAuth("view_dashboard");
   const [checks, setChecks] = useState<CheckSummary[]>([]);
+  const [pendingSpend, setPendingSpend] = useState(0);
+  const [financialYear, setFinancialYear] = useState<number | null>(null);
 
   useEffect(() => {
     if (!session) return;
     (async () => {
       const res = await authFetch("/api/compliance/checks", { cache: "no-store" });
       if (res.ok) setChecks(await res.json());
+
+      // Spend awaiting approval, scoped to the current financial year.
+      const [spendRes, settingsRes] = await Promise.all([
+        authFetch("/api/spend", { cache: "no-store" }),
+        authFetch("/api/settings/spend", { cache: "no-store" }),
+      ]);
+      if (spendRes.ok && settingsRes.ok) {
+        const apps = await spendRes.json();
+        const settings = await settingsRes.json();
+        const year = settings.capexYear || new Date().getFullYear();
+        setFinancialYear(year);
+        setPendingSpend(pendingSpendCount(apps, year));
+      }
     })();
   }, [session]);
 
@@ -118,8 +134,12 @@ export default function DashboardPage() {
         />
         <DashboardCard
           title="Spend Pending"
-          value={0}
-          subtitle="Awaiting approval"
+          value={pendingSpend}
+          subtitle={
+            financialYear
+              ? `Awaiting approval · FY ${financialYear}`
+              : "Awaiting approval"
+          }
           color="bg-risk-low"
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

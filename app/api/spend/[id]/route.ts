@@ -5,7 +5,7 @@ import {
   updateSpendApplication,
   uploadQuoteFile,
 } from "@/lib/spendData";
-import type { QuoteDetail } from "@/lib/spendData";
+import type { QuoteDetail, FundingAllocation } from "@/lib/spendData";
 
 export async function GET(
   req: NextRequest,
@@ -86,6 +86,23 @@ export async function PUT(
       budgetedStr !== null ? budgetedStr === "yes" : app.budgeted;
     const sourceOfFunds =
       (formData.get("sourceOfFunds") as string) || app.sourceOfFunds;
+
+    // Per-source funding split. Keep the existing split if none is supplied.
+    let fundingAllocations: FundingAllocation[] | undefined =
+      app.fundingAllocations;
+    const allocationsRaw = formData.get("fundingAllocations") as string | null;
+    if (allocationsRaw) {
+      try {
+        const parsed = JSON.parse(allocationsRaw);
+        if (Array.isArray(parsed)) {
+          fundingAllocations = parsed
+            .filter((a) => a && typeof a.source === "string")
+            .map((a) => ({ source: a.source, amount: Number(a.amount) || 0 }));
+        }
+      } catch {
+        // ignore malformed payload — keep existing allocations
+      }
+    }
 
     // On-behalf-of fields
     const onBehalfStr = formData.get("onBehalf") as string;
@@ -174,6 +191,7 @@ export async function PUT(
       supplierConnection,
       budgeted,
       sourceOfFunds,
+      fundingAllocations,
       quotes: quotePaths,
       quoteDetails,
       applicantName,

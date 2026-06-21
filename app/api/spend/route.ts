@@ -5,7 +5,7 @@ import {
   createSpendApplication,
   uploadQuoteFile,
 } from "@/lib/spendData";
-import type { QuoteDetail } from "@/lib/spendData";
+import type { QuoteDetail, FundingAllocation } from "@/lib/spendData";
 import { getPeopleByPositions } from "@/lib/peopleData";
 import {
   sendSpendNotificationEmail,
@@ -43,6 +43,28 @@ export async function POST(req: NextRequest) {
     const budgeted = (formData.get("budgeted") as string) === "yes";
     const sourceOfFunds =
       (formData.get("sourceOfFunds") as string) || "Fundraising";
+
+    // Per-source funding split (new). Falls back to a single allocation from
+    // the legacy sourceOfFunds string if not provided.
+    let fundingAllocations: FundingAllocation[] = [];
+    const allocationsRaw = formData.get("fundingAllocations") as string | null;
+    if (allocationsRaw) {
+      try {
+        const parsed = JSON.parse(allocationsRaw);
+        if (Array.isArray(parsed)) {
+          fundingAllocations = parsed
+            .filter((a) => a && typeof a.source === "string")
+            .map((a) => ({ source: a.source, amount: Number(a.amount) || 0 }));
+        }
+      } catch {
+        // ignore malformed payload — fall through to legacy single source
+      }
+    }
+    if (fundingAllocations.length === 0) {
+      fundingAllocations = [
+        { source: sourceOfFunds, amount: estimatedAmount || 0 },
+      ];
+    }
 
     // On-behalf-of fields
     const isOnBehalf = (formData.get("onBehalf") as string) === "yes";
@@ -99,6 +121,7 @@ export async function POST(req: NextRequest) {
       supplierConnection,
       budgeted,
       sourceOfFunds,
+      fundingAllocations,
       quotes: quotePaths,
       quoteDetails,
       status: "pending" as const,

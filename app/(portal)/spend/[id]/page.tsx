@@ -31,6 +31,7 @@ interface SpendDetail {
   supplierConnection?: string;
   budgeted?: boolean;
   sourceOfFunds?: string;
+  fundingAllocations?: { source: string; amount: number }[];
   quotes: string[];
   quoteDetails?: QuoteDetail[];
   status: string;
@@ -366,13 +367,32 @@ export default function SpendDetailPage() {
                   </p>
                 </div>
               )}
-              {data.sourceOfFunds && (
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500">Source of Funds</p>
-                  <p className="text-sm font-medium text-dark mt-1">
-                    {data.sourceOfFunds}
-                  </p>
+              {data.fundingAllocations && data.fundingAllocations.length > 0 ? (
+                <div className="p-3 bg-gray-50 rounded-lg md:col-span-1">
+                  <p className="text-xs text-gray-500">Source(s) of Funds</p>
+                  <div className="mt-1 space-y-0.5">
+                    {data.fundingAllocations.map((a) => (
+                      <div
+                        key={a.source}
+                        className="flex justify-between text-sm font-medium text-dark"
+                      >
+                        <span>{a.source}</span>
+                        <span className="text-gray-500">
+                          R{Math.round(a.amount).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+              ) : (
+                data.sourceOfFunds && (
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500">Source of Funds</p>
+                    <p className="text-sm font-medium text-dark mt-1">
+                      {data.sourceOfFunds}
+                    </p>
+                  </div>
+                )
               )}
             </div>
 
