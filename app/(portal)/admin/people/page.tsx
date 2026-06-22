@@ -2,7 +2,7 @@
 
 import { useAuth, authFetch } from "@/lib/useAuth";
 import { useState, useEffect, useCallback } from "react";
-import { POSITIONS } from "@/lib/positions";
+import { POSITIONS, GOVERNANCE_LABEL } from "@/lib/positions";
 import Toast from "@/components/Toast";
 
 interface PersonRecord {
@@ -130,7 +130,7 @@ export default function PeoplePage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-dark">People & Positions</h1>
-          <p className="text-gray-500 text-sm">Manage SGB positions and linked users</p>
+          <p className="text-gray-500 text-sm">Manage {GOVERNANCE_LABEL} positions and linked users</p>
         </div>
         <button
           onClick={openCreate}

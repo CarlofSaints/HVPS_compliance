@@ -7,6 +7,7 @@ import {
 } from "@/lib/spendData";
 import type { QuoteDetail, FundingAllocation } from "@/lib/spendData";
 import { getPeopleByPositions } from "@/lib/peopleData";
+import { APPROVER_POSITIONS } from "@/lib/positions";
 import {
   sendSpendNotificationEmail,
   sendApplicantConfirmationEmail,
@@ -139,12 +140,7 @@ export async function POST(req: NextRequest) {
     await createSpendApplication(app);
 
     // Send email notifications to key positions
-    const approvers = await getPeopleByPositions([
-      "Principal",
-      "SGB Treasurer",
-      "SGB Chairperson",
-      "SGB Vice Chairperson",
-    ]);
+    const approvers = await getPeopleByPositions(APPROVER_POSITIONS);
 
     for (const person of approvers) {
       if (person.email) {

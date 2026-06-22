@@ -3,6 +3,7 @@
 import { useAuth, authFetch } from "@/lib/useAuth";
 import { useState } from "react";
 import Toast from "@/components/Toast";
+import { GOVERNANCE_LABEL } from "@/lib/positions";
 
 export default function BackupPage() {
   const { session, loading } = useAuth("manage_users");
@@ -77,7 +78,7 @@ export default function BackupPage() {
           <li>Policies &amp; policy versions</li>
           <li>Compliance guidelines</li>
           <li>Documents &amp; compliance results</li>
-          <li>People (SGB members)</li>
+          <li>People ({GOVERNANCE_LABEL} members)</li>
           <li>Spend requests &amp; settings</li>
           <li>Audit logs</li>
           <li>User avatars</li>

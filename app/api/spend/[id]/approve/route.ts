@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/rolesData";
 import { getSpendById, updateSpendApplication } from "@/lib/spendData";
 import { getPeople } from "@/lib/peopleData";
+import { APPROVER_POSITIONS } from "@/lib/positions";
 
 export async function POST(
   req: NextRequest,
@@ -100,12 +101,7 @@ export async function POST(
       newStatus = "requires_changes";
     } else {
       // Check if all required approvers have approved
-      const approverPositions = [
-        "Principal",
-        "SGB Treasurer",
-        "SGB Chairperson",
-        "SGB Vice Chairperson",
-      ];
+      const approverPositions = APPROVER_POSITIONS;
       const approvedPositions = updatedApprovals
         .filter((a) => a.decision === "approved")
         .map((a) => a.position);

@@ -1,3 +1,5 @@
+import { GOVERNANCE_LABEL, GOVERNANCE_MEMBER_LABEL } from "./positions";
+
 export interface Permission {
   key: string;
   name: string;
@@ -47,13 +49,15 @@ export const DEFAULT_ROLES: Role[] = [
     permissions: [...ALL_PERMISSION_KEYS],
   },
   {
+    // id stays stable across school types; only the display name follows the
+    // governance model (SGB for public, Board for private).
     id: "sgb-admin",
-    name: "SGB Admin",
+    name: `${GOVERNANCE_LABEL} Admin`,
     permissions: ALL_PERMISSION_KEYS.filter((k) => k !== "manage_roles"),
   },
   {
     id: "sgb-member",
-    name: "SGB Member",
+    name: GOVERNANCE_MEMBER_LABEL,
     permissions: [
       "view_dashboard",
       "download_policies",

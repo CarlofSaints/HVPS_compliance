@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Toast from "@/components/Toast";
 import FundingSplit, { type Allocation } from "@/components/FundingSplit";
+import { DEFAULT_SUPPLIER_CONNECTIONS, GOVERNANCE_LABEL } from "@/lib/positions";
 
 interface SpendSettings {
   sourcesOfFunds: string[];
@@ -80,16 +81,8 @@ export default function NewSpendPage() {
     "CAPEX",
     "Expensed",
   ];
-  const supplierConnections = settings?.supplierConnections || [
-    "None",
-    "Parent",
-    "SGB Member",
-    "Friend of Parent",
-    "Teacher",
-    "Relative of Teacher",
-    "Relative of Parent",
-    "Relative of SGB Member",
-  ];
+  const supplierConnections =
+    settings?.supplierConnections || DEFAULT_SUPPLIER_CONNECTIONS;
 
   const updateQuote = (index: number, updates: Partial<QuoteEntry>) => {
     const updated = [...quotes];
@@ -173,7 +166,7 @@ export default function NewSpendPage() {
           New Spend Application
         </h1>
         <p className="text-gray-500 text-sm">
-          Submit a spend request for SGB approval
+          Submit a spend request for {GOVERNANCE_LABEL} approval
         </p>
       </div>
 

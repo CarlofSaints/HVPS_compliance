@@ -20,6 +20,12 @@
 
 export interface SchoolBranding {
   key: string;
+  /** Governance model. "public" = government school with an SGB (School
+   *  Governing Body); "private" = independent school with a Board of Governors /
+   *  Directors / Trustees. Drives the position list + governance terminology
+   *  shown across the portal (see lib/positions.ts). Pick this FIRST when
+   *  onboarding a school. */
+  schoolType: "public" | "private";
   /** Short acronym — sidebar heading, "Not an issue for X" labels. */
   shortName: string;
   /** Full legal name — login, dashboard, email + PDF headers. */
@@ -60,10 +66,11 @@ const SCHOOLS: Record<string, SchoolBranding> = {
   // (local dev or a misconfigured deploy). Not a real tenant.
   generic: {
     key: "generic",
+    schoolType: "public",
     shortName: "Portal",
     fullName: "School Compliance Portal",
     portalSubtitle: "Compliance Portal",
-    tagline: "SGB Compliance Portal",
+    tagline: "Compliance Portal",
     slogan: "",
     logo: "/logo.png", // placeholder; real tenants override
     logoAlt: "Compliance Portal",
@@ -79,6 +86,7 @@ const SCHOOLS: Record<string, SchoolBranding> = {
 
   hvps: {
     key: "hvps",
+    schoolType: "public",
     shortName: "HVPS",
     fullName: "Hurlyvale Primary School",
     portalSubtitle: "Compliance Portal",
@@ -102,6 +110,7 @@ const SCHOOLS: Record<string, SchoolBranding> = {
   // buttons/headings/email) with the school yellow as the sidebar ACCENT.
   jeppe: {
     key: "jeppe",
+    schoolType: "public",
     shortName: "JGHS", // 【CONFIRM】 preferred acronym
     fullName: "Jeppe Girls High", // 【CONFIRM】 exact legal name
     portalSubtitle: "Compliance Portal",

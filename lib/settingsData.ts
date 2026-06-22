@@ -1,4 +1,5 @@
 import { readJson, writeJson } from "./controlData";
+import { DEFAULT_SUPPLIER_CONNECTIONS } from "./positions";
 
 export interface SpendSettings {
   capexBudget: number;
@@ -25,16 +26,7 @@ const DEFAULT_SPEND_SETTINGS: SpendSettings = {
   capexYear: new Date().getFullYear(),
   financialYearEndMonth: 12, // December (calendar year) by default
   sourcesOfFunds: [...CANONICAL_SOURCES, "Grade 7 Gift", "Expensed"],
-  supplierConnections: [
-    "None",
-    "Parent",
-    "SGB Member",
-    "Friend of Parent",
-    "Teacher",
-    "Relative of Teacher",
-    "Relative of Parent",
-    "Relative of SGB Member",
-  ],
+  supplierConnections: DEFAULT_SUPPLIER_CONNECTIONS,
 };
 
 // Guarantee the canonical sources are present (first, in order), then keep any

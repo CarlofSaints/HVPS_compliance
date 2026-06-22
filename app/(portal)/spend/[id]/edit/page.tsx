@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Toast from "@/components/Toast";
 import FundingSplit, { type Allocation } from "@/components/FundingSplit";
+import { DEFAULT_SUPPLIER_CONNECTIONS } from "@/lib/positions";
 
 interface SpendSettings {
   sourcesOfFunds: string[];
@@ -147,11 +148,8 @@ export default function EditSpendPage() {
     "CAPEX",
     "Expensed",
   ];
-  const supplierConnections = settings?.supplierConnections || [
-    "None",
-    "Parent",
-    "SGB Member",
-  ];
+  const supplierConnections =
+    settings?.supplierConnections || DEFAULT_SUPPLIER_CONNECTIONS;
 
   const updateQuote = (index: number, updates: Partial<QuoteEntry>) => {
     const updated = [...quotes];

@@ -58,6 +58,7 @@ by name — Sidebar, login, dashboard, emails and PDFs all read from this config
 
 | Field            | What it controls                                              |
 | ---------------- | ------------------------------------------------------------- |
+| `schoolType`     | **Pick first.** `"public"` (government school → SGB roles) or `"private"` (independent school → Board of Governors/Directors/Trustees roles). Drives the People positions, spend approvers, role names + governance copy — see Governance note below. |
 | `shortName`      | Sidebar heading, "Not an issue for X" labels (e.g. `JGHS`)    |
 | `fullName`       | Login + dashboard + email + PDF headers                       |
 | `portalSubtitle` | Small text under the sidebar heading                          |
@@ -91,6 +92,26 @@ This is exactly how Jeppe is set up: `primary` = black, `accent` = `#fcb517`
 (Jeppe yellow). For a school whose brand colour is already dark (like HVPS cyan),
 just set `accent` equal to `primary`.
 
+### Governance note — public (SGB) vs private (Board)
+
+`schoolType` is the **first thing to decide** for a new school and is the only
+thing that changes the governance vocabulary:
+
+- **`"public"`** (government schools, e.g. HVPS, Jeppe) → SGB positions:
+  Principal, SGB Chairperson, SGB Treasurer, etc. This is the default and is
+  unchanged from before.
+- **`"private"`** (independent schools) → Board equivalents: Head of School,
+  Chairperson of the Board, Treasurer / Chair of Finance Committee, Board
+  Secretary, Co-opted / Independent Board Member, etc.
+
+It automatically switches: the **People & Positions** list, the **spend
+approvers** (Head/Principal + Treasurer + Chair + Vice-Chair), the default
+**conflict-of-interest** options ("Board Member" vs "SGB Member"), the seeded
+**role names** ("Board Admin/Member" vs "SGB Admin/Member") and on-screen
+governance labels. All of this lives in `lib/positions.ts` — no per-school edits
+needed beyond setting `schoolType`. For a private school, also set its `tagline`
+to something like `"Board Compliance Portal"` (taglines are free text per school).
+
 ### Email note
 
 All schools currently send from `noreply@outerjoin.co.za` (the display name
@@ -112,6 +133,7 @@ In `lib/branding.ts`, copy an existing block inside `SCHOOLS` and edit it:
 ```ts
   riverside: {
     key: "riverside",
+    schoolType: "public",             // "public" (SGB) or "private" (Board)
     shortName: "Riverside",
     fullName: "Riverside College",
     portalSubtitle: "Compliance Portal",
